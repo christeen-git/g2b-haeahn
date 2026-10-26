@@ -12,16 +12,10 @@ sys.stdout.reconfigure(line_buffering=True)
 KST = timezone(timedelta(hours=9))
 now = datetime.now(KST)
 
-order_bgn_ym = now.strftime("%Y%m")
-order_end_ym = f"{now.year + 1}{now.month:02d}"
-
-# 💡 최근 12시간 대신 '7일 전(일주일 전)'부터 오늘까지 조회하도록 변경
-inqryBgnDate12 = (now - timedelta(days=7)).strftime("%Y%m%d") + "0000"
-today_str12 = now.strftime("%Y%m%d") + "2359"
+inqryBgnDt14 = (now - timedelta(days=7)).strftime("%Y%m%d") + "000000"
+inqryEndDt14 = now.strftime("%Y%m%d%H%M59")
 
 RAW_SERVICE_KEY = unquote(unquote(os.environ.get("SERVICE_KEY", "").strip()))
-
-SENT_FILE = "sent_notices.json"
 WEB_JSON_FILE = "notices.json"
 
 P1_KEYWORDS = ["설계", "건립", "신축", "개발"]
@@ -29,30 +23,50 @@ P2_KEYWORDS = ["타당성", "마스터", "기본계획", "기본구상", "공모
 EXCLUDE_KEYWORDS = ["건설사업관리용역", "폐기물", "감리자", "내진보강"]
 
 def save_web_dashboard_json(items):
+    # 기존에 사용자가 웹에서 수동으로 숨김 처리했거나 관리했던 상태를 유지하기 위해 기존 파일 로드 시도
+    existing_items_map = {}
+    if os.path.exists(WEB_JSON_FILE):
+        try:
+            with open(WEB_JSON_FILE, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+                if isinstance(old_data, list):
+                    for old_item in old_data:
+                        if "id" in old_item:
+                            existing_items_map[old_item["id"]] = old_item
+        except Exception:
+            pass
+
     formatted_list = []
     for idx, item in enumerate(items, 1):
-        raw_price = item.get('raw_price', 0)
-        notice_dt = item.get('notice_dt', '-')
-        expl_info = item.get('expl_info', '-')
-        reg_close = item.get('reg_close_dt', '-')
-        bid_close = item.get('bid_close_dt', '-')
-        open_dt = item.get('open_dt', '-')
+        item_id = f"AUTO_{idx:03d}"
+        
+        # 기본값 설정
+        is_hidden = False
+        comments = []
+        is_important = False
+        
+        # 기존에 관리자가 설정했던 숨김 여부나 코멘트가 있다면 그대로 유지
+        if item_id in existing_items_map:
+            is_hidden = existing_items_map[item_id].get("isHidden", False)
+            comments = existing_items_map[item_id].get("comments", [])
+            is_important = existing_items_map[item_id].get("isImportant", False)
 
         formatted_list.append({
-            "id": f"AUTO_{idx:03d}",
+            "id": item_id,
             "ntceKindNm": item.get('source_type'),
             "ntceNm": item.get('title'),
             "organ": item.get('notice_instt'),
-            "price": raw_price,
-            "dateNotice": notice_dt,
-            "dateBrief": expl_info,
-            "dateLimit": bid_close if bid_close != '-' else reg_close,
-            "dateOpen": open_dt,
+            "price": item.get('raw_price', 0),
+            "dateNotice": item.get('notice_dt', '-'),
+            "dateBrief": item.get('expl_info', '-'),
+            "dateLimit": item.get('bid_close_dt', '-') if item.get('bid_close_dt', '-') != '-' else item.get('reg_close_dt', '-'),
+            "dateOpen": item.get('open_dt', '-'),
             "chgRsn": item.get('chg_rsn', ''),
-            "isImportant": False,
+            "isImportant": is_important,
+            "isHidden": is_hidden,  # 👈 관리자 숨김 처리 필드 추가
             "url": item.get('url', ''),
-            "comments": [],
-            "files": [att['name'] for att in item.get('attachments', [])]
+            "comments": comments,
+            "files": []
         })
 
     try:
@@ -88,23 +102,15 @@ def format_datetime_str(dt_str):
     if not dt_str or dt_str == '-': return '-'
     clean_str = "".join(filter(str.isdigit, dt_str))
     try:
-        if len(clean_str) >= 12: return f"{clean_str[:4]}-{clean_str[4:6]}-{clean_str[6:8]}"
-        elif len(clean_str) == 8: return f"{clean_str[:4]}-{clean_str[4:6]}-{clean_str[6:8]}"
+        if len(clean_str) >= 8: return f"{clean_str[:4]}-{clean_str[4:6]}-{clean_str[6:8]}"
     except Exception: pass
     return dt_str
 
 def check_bids():
-    now = datetime.now(KST)
-    # 💡 7일 전부터 오늘까지 조회하도록 기간 확장 (14자리 형식)
-    inqryBgnDt14 = (now - timedelta(days=7)).strftime("%Y%m%d") + "000000"
-    inqryEndDt14 = now.strftime("%Y%m%d%H%M59")
-
-    matched_bids, matched_plans, matched_specs = [], [], []
-
-    # 본공고 조회
+    matched_bids = []
     for _, base_url in [("용역", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"), ("공사", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwk")]:
         page_no = 1
-        while page_no <= 3: # 7일간 데이터가 많을 수 있으므로 최대 3페이지(300건)까지 탐색
+        while page_no <= 3:
             root = fetch_api_data(base_url, {"inqryDiv": "1", "inqryBgnDt": inqryBgnDt14, "inqryEndDt": inqryEndDt14, "pageNo": str(page_no), "numOfRows": "100"})
             items = root.findall(".//item") if root is not None else []
             if not items: break
@@ -128,14 +134,12 @@ def check_bids():
                         'bid_close_dt': format_datetime_str(item.findtext('bidClseDt') or '-'),
                         'open_dt': format_datetime_str(item.findtext('opengDt') or '-'),
                         'url': item.findtext('bidNtceDtlUrl', ''),
-                        'attachments': [],
                         'chg_rsn': item.findtext('chgNtceRsn') or ''
                     })
             if len(items) < 100: break
             page_no += 1
 
-    all_matched_items = matched_bids + matched_plans + matched_specs
-    save_web_dashboard_json(all_matched_items)
+    save_web_dashboard_json(matched_bids)
 
 if __name__ == "__main__":
     check_bids()

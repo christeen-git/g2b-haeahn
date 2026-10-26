@@ -207,77 +207,23 @@
             checkAuth();
         }
 
-        // 초기 데이터
-        let notices = [
-            {
-                id: "NOT001",
-                ntceKindNm: "발주계획",
-                ntceNm: "2026년 스마트 도시재생사업 기본계획 수립 용역",
-                organ: "서울특별시",
-                demand: "도시계획과",
-                price: "450,000,000 원",
-                dateNotice: "2026-10-24",
-                dateBrief: "-",
-                dateLimit: "2026-11-15",
-                dateOpen: "2026-11-16",
-                chgRsn: "",
-                isImportant: true,
-                comments: ["사업 규모가 적절하여 참여 검토 필요", "제안서 작성 준비 시작합시다."],
-                files: ["도시재생_사업계획서_요약.pdf"]
-            },
-            {
-                id: "NOT002",
-                ntceKindNm: "사전규격",
-                ntceNm: "지능형 교통체계(ITS) 구축 사전규격 공개",
-                organ: "한국도로공사",
-                demand: "교통연구소",
-                price: "1,200,000,000 원",
-                dateNotice: "2026-10-25",
-                dateBrief: "-",
-                dateLimit: "2026-10-31",
-                dateOpen: "-",
-                chgRsn: "",
-                isImportant: false,
-                comments: [],
-                files: []
-            },
-            {
-                id: "NOT003",
-                ntceKindNm: "정비사업",
-                ntceNm: "(정비사업) 반포 주공아파트 재건축정비사업 시공사 선정 공고",
-                organ: "반포주공재건축조합",
-                demand: "조합사무실",
-                price: "-",
-                dateNotice: "2026-10-20",
-                dateBrief: "2026-10-28 14:00 (조합강당)",
-                dateLimit: "2026-11-20 17:00",
-                dateOpen: "2026-11-20 18:00",
-                chgRsn: "현장설명회 장소가 조합강당으로 수정되었습니다.",
-                isImportant: true,
-                comments: ["현장설명회 필수 참석 인원 배치 요망"],
-                files: ["현장설명회_참석안내.docx"]
-            },
-            {
-                id: "NOT004",
-                ntceKindNm: "본공고",
-                ntceNm: "2026년 공공 데이터베이스 고도화 사업 입찰공고",
-                organ: "행정안전부",
-                demand: "정보화담당관",
-                price: "850,000,000 원",
-                dateNotice: "2026-10-26",
-                dateBrief: "-",
-                dateLimit: "2026-11-10",
-                dateOpen: "2026-11-10",
-                chgRsn: "",
-                isImportant: false,
-                comments: [],
-                files: []
-            }
-        ];
+        let notices = [];
 
-        let currentRole = 'user';
-        let currentTab = 'all';
-        let activeNoticeId = null;
+// 깃허브에 업로드될 notices.json 파일을 자동으로 불러오는 함수
+async function loadNotices() {
+    try {
+        const response = await fetch('notices.json?t=' + new Date().getTime());
+        if (response.ok) {
+            notices = await response.json();
+            render(); // 대시보드 화면 새로고침
+        }
+    } catch (error) {
+        console.log("notices.json 파일이 아직 없습니다. 파이썬 스크립트 실행을 기다려주세요.");
+    }
+}
+
+// 비밀번호 인증이 완료된 후 loadNotices()가 실행되도록 설정
+// (예: checkAuth() 함수 안이나 페이지 로드 맨 마지막 줄에 loadNotices(); 추가)
 
         // 역할 변경 (관리자 모드 접속 시 추가 비밀번호 확인)
         function setRole(role) {

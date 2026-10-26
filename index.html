@@ -4,20 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>입찰 및 정비사업 통합 모니터링 대시보드</title>
-    <!-- Tailwind CSS & Lucide Icons CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         body { font-family: 'Pretendard', sans-serif; }
-        .gold-glow {
-            box-shadow: 0 0 15px rgba(234, 179, 8, 0.35);
-        }
+        .gold-glow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.35); }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
 
-    <!-- 🔒 1단계: 접속 인증 로그인 모달 (비밀번호 미입력 시 전체 화면 차단) -->
+    <!-- 로그인 보안 모달 -->
     <div id="auth-overlay" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-100 text-center">
             <div class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
@@ -39,9 +36,8 @@
         </div>
     </div>
 
-    <!-- 🌐 대시보드 메인 영역 (인증 완료 후 노출) -->
+    <!-- 대시보드 메인 -->
     <div id="dashboard-main" class="hidden">
-        <!-- 상단 헤더 -->
         <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
             <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
                 <div class="flex items-center gap-3">
@@ -54,20 +50,15 @@
                     </div>
                 </div>
 
-                <!-- 우측 컨트롤 (새로고침 & 모드 스위치 & 로그아웃) -->
                 <div class="flex items-center gap-3">
-                    <button onclick="refreshData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium border border-slate-700 transition">
+                    <button onclick="loadNotices()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium border border-slate-700 transition">
                         <i id="refresh-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
                         <span>새로고침</span>
                     </button>
 
                     <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 flex items-center">
-                        <button id="btn-user-mode" onclick="setRole('user')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition">
-                            👤 사용자 모드
-                        </button>
-                        <button id="btn-admin-mode" onclick="setRole('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition">
-                            ⚙️ 관리자 모드
-                        </button>
+                        <button id="btn-user-mode" onclick="setRole('user')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition">👤 사용자</button>
+                        <button id="btn-admin-mode" onclick="setRole('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition">⚙️ 관리자</button>
                     </div>
 
                     <button onclick="logout()" title="로그아웃" class="p-2 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-lg border border-slate-700 transition">
@@ -77,38 +68,21 @@
             </div>
         </header>
 
-        <!-- 메인 컨테이너 -->
         <main class="max-w-7xl mx-auto px-4 mt-6">
-
-            <!-- 상태 알림 바 -->
             <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg flex items-center justify-between">
-                <span class="flex items-center gap-2">
-                    <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
-                    <span id="status-msg">최신 데이터를 불러왔습니다.</span>
-                </span>
+                <span class="flex items-center gap-2"><i data-lucide="info" class="w-4 h-4 text-blue-600"></i><span id="status-msg">최신 데이터를 불러왔습니다.</span></span>
                 <button onclick="document.getElementById('status-bar').classList.add('hidden')" class="text-blue-500 hover:text-blue-700">✕</button>
             </div>
 
-            <!-- 탭 및 검색 바 -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <!-- 탭 메뉴 -->
                     <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                        <button onclick="setTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm">
-                            📋 전체공고현황
-                        </button>
-                        <button onclick="setTab('plan')" id="tab-plan" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                            📌 발주계획
-                        </button>
-                        <button onclick="setTab('spec')" id="tab-spec" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                            🔍 사전규격
-                        </button>
-                        <button onclick="setTab('bid')" id="tab-bid" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                            🏛️ 본공고 / 정비사업
-                        </button>
+                        <button onclick="setTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm">📋 전체공고현황</button>
+                        <button onclick="setTab('bid')" id="tab-bid" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">🏛️ 본공고</button>
+                        <button onclick="setTab('spec')" id="tab-spec" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">🔍 사전규격</button>
+                        <button onclick="setTab('plan')" id="tab-plan" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">📌 발주계획</button>
                     </div>
 
-                    <!-- 검색창 -->
                     <div class="relative w-full md:w-72">
                         <input type="text" id="search-input" oninput="render()" placeholder="공고명, 기관명 검색..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
@@ -116,15 +90,11 @@
                 </div>
             </div>
 
-            <!-- 공고 컨테이너 영역 -->
-            <div id="notice-container">
-                <!-- JavaScript로 동적 생성 -->
-            </div>
-
+            <div id="notice-container"></div>
         </main>
     </div>
 
-    <!-- 댓글 & 첨부파일 모달 -->
+    <!-- 모달 -->
     <div id="modal-backdrop" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             <div class="p-5 bg-slate-900 text-white flex justify-between items-center">
@@ -134,31 +104,13 @@
                 </div>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl font-bold">✕</button>
             </div>
-
             <div class="p-6 overflow-y-auto space-y-6 flex-1">
-                <!-- 댓글 섹션 -->
                 <div>
-                    <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <i data-lucide="message-square" class="w-4 h-4 text-blue-600"></i> 팀원 의견 및 협업 메모
-                    </h4>
+                    <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><i data-lucide="message-square" class="w-4 h-4 text-blue-600"></i> 팀원 의견 및 협업 메모</h4>
                     <div id="modal-comments-list" class="space-y-2 mb-3"></div>
                     <div class="flex gap-2">
                         <input type="text" id="comment-input" placeholder="검토 의견이나 메모를 남겨주세요..." class="flex-1 text-sm px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <button onclick="addComment()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium">등록</button>
-                    </div>
-                </div>
-
-                <hr class="border-slate-200">
-
-                <!-- 내부 첨부파일 섹션 -->
-                <div>
-                    <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> 관련 검토서 및 첨부파일
-                    </h4>
-                    <div id="modal-files-list" class="space-y-2 mb-3"></div>
-                    <div class="flex items-center gap-2">
-                        <input type="file" id="file-input" class="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        <button onclick="uploadFile()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-medium">업로드</button>
                     </div>
                 </div>
             </div>
@@ -166,19 +118,18 @@
     </div>
 
     <script>
-        // -------------------------------------------------------------
-        // 🔑 보안 비밀번호 설정 (원하시는 비밀번호로 여기서 변경하세요!)
-        // -------------------------------------------------------------
-        const SITE_PASSWORD = "1234";        // 일반 접속 비밀번호
-        const ADMIN_PASSWORD = "admin1234";  // 관리자 모드 접속 비밀번호
-        // -------------------------------------------------------------
+        const SITE_PASSWORD = "1234";
+        const ADMIN_PASSWORD = "admin1234";
+        let notices = [];
+        let currentRole = 'user';
+        let currentTab = 'all';
+        let activeNoticeId = null;
 
-        // 인증 상태 확인
         function checkAuth() {
             if (sessionStorage.getItem('authenticated') === 'true') {
                 document.getElementById('auth-overlay').classList.add('hidden');
                 document.getElementById('dashboard-main').classList.remove('hidden');
-                render();
+                loadNotices();
             } else {
                 document.getElementById('auth-overlay').classList.remove('hidden');
                 document.getElementById('dashboard-main').classList.add('hidden');
@@ -186,94 +137,70 @@
             lucide.createIcons();
         }
 
-        // 비밀번호 검증
         function verifyPassword(event) {
             event.preventDefault();
-            const inputPw = document.getElementById('auth-password').value;
-            const errorMsg = document.getElementById('auth-error');
-
-            if (inputPw === SITE_PASSWORD) {
+            if (document.getElementById('auth-password').value === SITE_PASSWORD) {
                 sessionStorage.setItem('authenticated', 'true');
-                errorMsg.classList.add('hidden');
                 checkAuth();
             } else {
-                errorMsg.classList.remove('hidden');
+                document.getElementById('auth-error').classList.remove('hidden');
             }
         }
 
-        // 로그아웃
         function logout() {
             sessionStorage.removeItem('authenticated');
             checkAuth();
         }
 
-        let notices = [];
-
-// 깃허브에 업로드될 notices.json 파일을 자동으로 불러오는 함수
-async function loadNotices() {
-    try {
-        const response = await fetch('notices.json?t=' + new Date().getTime());
-        if (response.ok) {
-            notices = await response.json();
-            render(); // 대시보드 화면 새로고침
-        }
-    } catch (error) {
-        console.log("notices.json 파일이 아직 없습니다. 파이썬 스크립트 실행을 기다려주세요.");
-    }
-}
-
-// 비밀번호 인증이 완료된 후 loadNotices()가 실행되도록 설정
-// (예: checkAuth() 함수 안이나 페이지 로드 맨 마지막 줄에 loadNotices(); 추가)
-
-        // 역할 변경 (관리자 모드 접속 시 추가 비밀번호 확인)
-        function setRole(role) {
-            if (role === 'admin' && currentRole !== 'admin') {
-                const adminPw = prompt("⚙️ 관리자 모드 비밀번호를 입력해 주세요:");
-                if (adminPw !== ADMIN_PASSWORD) {
-                    alert("⚠️ 관리자 비밀번호가 올바르지 않습니다.");
-                    return;
+        // 깃허브에 생성된 notices.json 실시간 불러오기
+        async function loadNotices() {
+            const icon = document.getElementById('refresh-icon');
+            if(icon) icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('notices.json?t=' + new Date().getTime());
+                if (res.ok) {
+                    notices = await res.json();
+                    showStatus('✅ 최신 공고 데이터를 성공적으로 불러왔습니다.');
                 }
+            } catch (e) {
+                console.log("notices.json 로드 대기 중...");
             }
-
-            currentRole = role;
-            document.getElementById('btn-user-mode').className = role === 'user' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
-            document.getElementById('btn-admin-mode').className = role === 'admin' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
-            
-            showStatus(role === 'admin' ? '⚙️ 관리자 권한이 승인되었습니다.' : '👤 사용자 모드로 전환되었습니다.');
+            if(icon) icon.classList.remove('animate-spin');
             render();
         }
 
-        // 탭 변경
+        function formatPrice(price) {
+            if (!price || price === 0) return '민간/기타';
+            return (price / 100000000).toFixed(1) + '억 원';
+        }
+
+        function setRole(role) {
+            if (role === 'admin' && currentRole !== 'admin') {
+                if (prompt("⚙️ 관리자 모드 비밀번호를 입력해 주세요:") !== ADMIN_PASSWORD) {
+                    alert("⚠️ 비밀번호가 틀렸습니다.");
+                    return;
+                }
+            }
+            currentRole = role;
+            document.getElementById('btn-user-mode').className = role === 'user' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
+            document.getElementById('btn-admin-mode').className = role === 'admin' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
+            render();
+        }
+
         function setTab(tab) {
             currentTab = tab;
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = 'tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100';
-            });
+            document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100');
             document.getElementById(`tab-${tab}`).className = 'tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm';
             render();
         }
 
-        // 중요 공고 토글
         function toggleImportant(id, event) {
             event.stopPropagation();
-            const notice = notices.find(n => n.id === id);
-            if(notice) {
-                notice.isImportant = !notice.isImportant;
-                showStatus(`[${notice.ntceNm.substring(0, 15)}...] 공고가 ${notice.isImportant ? '중요 공고로 지정' : '해제'}되었습니다.`);
+            const n = notices.find(item => item.id === id);
+            if (n) {
+                n.isImportant = !n.isImportant;
                 render();
             }
-        }
-
-        // 새로고침 시뮬레이션
-        function refreshData() {
-            const icon = document.getElementById('refresh-icon');
-            icon.classList.add('animate-spin');
-            showStatus('최신 공고 데이터를 수집 및 갱신하고 있습니다...');
-            setTimeout(() => {
-                icon.classList.remove('animate-spin');
-                showStatus('✅ 최신 공고 데이터 갱신이 완료되었습니다.');
-                render();
-            }, 800);
         }
 
         function showStatus(msg) {
@@ -282,62 +209,33 @@ async function loadNotices() {
             bar.classList.remove('hidden');
         }
 
-        // 카드리스트 렌더링
         function renderCard(item) {
-            const isRedevelopment = item.ntceKindNm === '정비사업' || item.ntceNm.includes('정비사업');
             const isImportant = item.isImportant;
-
             return `
-                <div class="bg-white rounded-xl p-5 border ${isImportant ? 'border-amber-400 bg-amber-50/20 gold-glow relative' : 'border-slate-200 hover:border-slate-300'} shadow-sm transition">
-                    ${isImportant ? `
-                        <div class="absolute -top-3 left-4 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                            ★ 중요 공고
+                <div class="bg-white rounded-xl p-5 border ${isImportant ? 'border-amber-400 bg-amber-50/20 gold-glow relative' : 'border-slate-200'} shadow-sm transition flex flex-col justify-between">
+                    <div>
+                        ${isImportant ? '<div class="absolute -top-3 left-4 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">★ 중요 공고</div>' : ''}
+                        <div class="flex justify-between items-start gap-3 mb-2 ${isImportant ? 'mt-1' : ''}">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded ${item.ntceKindNm === '본공고' ? 'bg-emerald-100 text-emerald-700' : item.ntceKindNm === '사전규격' ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'}">${item.ntceKindNm}</span>
+                                <span class="text-xs text-slate-400 font-mono">${item.id}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${item.url ? `<a href="${item.url}" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md font-medium flex items-center gap-1"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> 원문 링크</a>` : ''}
+                                ${currentRole === 'admin' ? `<button onclick="toggleImportant('${item.id}', event)" class="text-xs font-semibold px-2.5 py-1 rounded-md border ${isImportant ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-slate-100 border-slate-200 text-slate-600'}"><i data-lucide="star" class="w-3.5 h-3.5 ${isImportant ? 'fill-amber-500 text-amber-500' : ''}"></i> ${isImportant ? '해제' : '지정'}</button>` : ''}
+                            </div>
                         </div>
-                    ` : ''}
-
-                    <div class="flex justify-between items-start gap-3 mb-2 ${isImportant ? 'mt-1' : ''}">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-semibold px-2 py-0.5 rounded ${
-                                item.ntceKindNm === '발주계획' ? 'bg-indigo-100 text-indigo-700' :
-                                item.ntceKindNm === '사전규격' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'
-                            }">${item.ntceKindNm}</span>
-                            <span class="text-xs text-slate-400 font-mono">${item.id}</span>
+                        <h3 class="text-base font-bold text-slate-900 mb-3 hover:text-blue-600 cursor-pointer" onclick="openModal('${item.id}')">${item.ntceNm}</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-3 rounded-lg mb-3 border border-slate-100">
+                            <div><span class="text-slate-400 block">발주/수요처</span><span class="font-semibold text-slate-700">${item.organ}</span></div>
+                            <div><span class="text-slate-400 block">추정용역비</span><span class="font-bold text-blue-600">${formatPrice(item.price)}</span></div>
+                            <div><span class="text-slate-400 block">공고일 / 현설일</span><span class="font-medium text-slate-700">${item.dateNotice} / ${item.dateBrief}</span></div>
+                            <div><span class="text-slate-400 block">마감일 / 개찰일</span><span class="font-semibold text-rose-600">${item.dateLimit} / ${item.dateOpen}</span></div>
                         </div>
-
-                        ${currentRole === 'admin' ? `
-                            <button onclick="toggleImportant('${item.id}', event)" class="text-xs font-semibold px-2.5 py-1 rounded-md border ${isImportant ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-slate-100 border-slate-200 text-slate-600'} hover:bg-amber-200 transition flex items-center gap-1">
-                                <i data-lucide="star" class="w-3.5 h-3.5 ${isImportant ? 'fill-amber-500 text-amber-500' : ''}"></i>
-                                ${isImportant ? '중요 해제' : '중요 지정'}
-                            </button>
-                        ` : ''}
                     </div>
-
-                    <h3 class="text-base font-bold text-slate-900 mb-3 hover:text-blue-600 cursor-pointer" onclick="openModal('${item.id}')">
-                        ${item.ntceNm}
-                    </h3>
-
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-3 rounded-lg mb-3 border border-slate-100">
-                        <div><span class="text-slate-400 block">발주/수요처</span><span class="font-semibold text-slate-700">${item.organ}</span></div>
-                        ${!isRedevelopment ? `<div><span class="text-slate-400 block">추정용역비</span><span class="font-bold text-blue-600">${item.price}</span></div>` : '<div><span class="text-slate-400 block">구분</span><span class="font-bold text-amber-600">민간 정비사업</span></div>'}
-                        <div><span class="text-slate-400 block">공고일/현설일</span><span class="font-medium text-slate-700">${item.dateBrief !== '-' ? item.dateBrief : item.dateNotice}</span></div>
-                        <div><span class="text-slate-400 block">제출마감일</span><span class="font-semibold text-rose-600">${item.dateLimit}</span></div>
-                    </div>
-
-                    ${item.chgRsn ? `
-                        <div class="mb-3 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-start gap-1.5">
-                            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
-                            <div><strong class="font-bold">* 변경/취소 사유:</strong> ${item.chgRsn}</div>
-                        </div>
-                    ` : ''}
-
                     <div class="flex justify-between items-center text-xs text-slate-500 pt-2 border-t border-slate-100">
-                        <div class="flex items-center gap-3">
-                            <span class="flex items-center gap-1"><i data-lucide="message-square" class="w-3.5 h-3.5 text-slate-400"></i> 댓글 ${item.comments.length}</span>
-                            <span class="flex items-center gap-1"><i data-lucide="paperclip" class="w-3.5 h-3.5 text-slate-400"></i> 파일 ${item.files.length}</span>
-                        </div>
-                        <button onclick="openModal('${item.id}')" class="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
-                            💬 댓글 & 업무 첨부 ➔
-                        </button>
+                        <span>💬 댓글 ${(item.comments || []).length}개</span>
+                        <button onclick="openModal('${item.id}')" class="text-blue-600 font-semibold hover:underline">상세 검토 ➔</button>
                     </div>
                 </div>
             `;
@@ -345,162 +243,73 @@ async function loadNotices() {
 
         function render() {
             const container = document.getElementById('notice-container');
-            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            const kw = document.getElementById('search-input').value.toLowerCase();
 
             let filtered = notices.filter(n => {
-                const matchSearch = n.ntceNm.toLowerCase().includes(searchKeyword) || n.organ.toLowerCase().includes(searchKeyword);
-                if (!matchSearch) return false;
-
-                if (currentTab === 'plan') return n.ntceKindNm === '발주계획';
+                if (kw && !n.ntceNm.toLowerCase().includes(kw) && !n.organ.toLowerCase().includes(kw)) return false;
+                if (currentTab === 'bid') return n.ntceKindNm === '본공고';
                 if (currentTab === 'spec') return n.ntceKindNm === '사전규격';
-                if (currentTab === 'bid') return n.ntceKindNm === '본공고' || n.ntceKindNm === '정비사업';
+                if (currentTab === 'plan') return n.ntceKindNm === '발주계획';
                 return true;
             });
 
-            filtered.sort((a, b) => (b.isImportant ? 1 : 0) - (a.isImportant ? 1 : 0));
+            // 중요 공고 우선, 그 다음 과거 공고(날짜 오름차순) 정렬
+            filtered.sort((a, b) => {
+                if (b.isImportant !== a.isImportant) return (b.isImportant ? 1 : 0) - (a.isImportant ? 1 : 0);
+                return new Date(a.dateNotice || 0) - new Date(b.dateNotice || 0);
+            });
 
             if (filtered.length === 0) {
-                container.innerHTML = `
-                    <div class="bg-white rounded-xl p-12 text-center text-slate-400 border border-slate-200">
-                        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
-                        <p class="text-sm font-medium">검색된 공고가 없습니다.</p>
-                    </div>
-                `;
+                container.innerHTML = `<div class="bg-white rounded-xl p-12 text-center text-slate-400 border border-slate-200">등록된 공고가 없습니다. (파이썬 자동 연동 대기중)</div>`;
                 lucide.createIcons();
                 return;
             }
 
             if (currentTab === 'all') {
-                const plans = filtered.filter(n => n.ntceKindNm === '발주계획');
+                const bids = filtered.filter(n => n.ntceKindNm === '본공고');
                 const specs = filtered.filter(n => n.ntceKindNm === '사전규격');
-                const bids = filtered.filter(n => n.ntceKindNm === '본공고' || n.ntceKindNm === '정비사업');
+                const plans = filtered.filter(n => n.ntceKindNm === '발주계획');
 
                 container.innerHTML = `
                     <div class="space-y-8">
-                        ${plans.length > 0 ? `
-                            <section class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-5">
-                                <h2 class="text-base font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> 📌 발주계획 (${plans.length}건)
-                                </h2>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    ${plans.map(renderCard).join('')}
-                                </div>
-                            </section>
-                        ` : ''}
-
-                        ${specs.length > 0 ? `
-                            <section class="bg-purple-50/40 border border-purple-100 rounded-2xl p-5">
-                                <h2 class="text-base font-bold text-purple-900 mb-4 flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> 🔍 사전규격 (${specs.length}건)
-                                </h2>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    ${specs.map(renderCard).join('')}
-                                </div>
-                            </section>
-                        ` : ''}
-
-                        ${bids.length > 0 ? `
-                            <section class="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-5">
-                                <h2 class="text-base font-bold text-emerald-900 mb-4 flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> 🏛️ 본공고 및 정비사업 (${bids.length}건)
-                                </h2>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    ${bids.map(renderCard).join('')}
-                                </div>
-                            </section>
-                        ` : ''}
+                        ${bids.length ? `<section class="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-5"><h2 class="text-base font-bold text-emerald-900 mb-4">🏛️ 본공고 (${bids.length}건)</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${bids.map(renderCard).join('')}</div></section>` : ''}
+                        ${specs.length ? `<section class="bg-purple-50/40 border border-purple-100 rounded-2xl p-5"><h2 class="text-base font-bold text-purple-900 mb-4">🔍 사전규격 (${specs.length}건)</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${specs.map(renderCard).join('')}</div></section>` : ''}
+                        ${plans.length ? `<section class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-5"><h2 class="text-base font-bold text-indigo-900 mb-4">📌 발주계획 (${plans.length}건)</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${plans.map(renderCard).join('')}</div></section>` : ''}
                     </div>
                 `;
             } else {
-                container.innerHTML = `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        ${filtered.map(renderCard).join('')}
-                    </div>
-                `;
+                container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${filtered.map(renderCard).join('')}</div>`;
             }
-
             lucide.createIcons();
         }
 
-        // 모달 관리
         function openModal(id) {
             activeNoticeId = id;
-            const notice = notices.find(n => n.id === id);
-            if (!notice) return;
-
-            document.getElementById('modal-category').innerText = notice.ntceKindNm;
-            document.getElementById('modal-title').innerText = notice.ntceNm;
-
-            renderModalContent();
+            const n = notices.find(item => item.id === id);
+            if (!n) return;
+            document.getElementById('modal-category').innerText = n.ntceKindNm;
+            document.getElementById('modal-title').innerText = n.ntceNm;
+            
+            const list = document.getElementById('modal-comments-list');
+            list.innerHTML = (n.comments || []).length ? n.comments.map(c => `<div class="bg-slate-100 p-2.5 rounded text-xs">${c}</div>`).join('') : '<p class="text-xs text-slate-400 italic">메모가 없습니다.</p>';
             document.getElementById('modal-backdrop').classList.remove('hidden');
         }
 
-        function closeModal() {
-            document.getElementById('modal-backdrop').classList.add('hidden');
-        }
-
-        function renderModalContent() {
-            const notice = notices.find(n => n.id === activeNoticeId);
-            if (!notice) return;
-
-            const commentsContainer = document.getElementById('modal-comments-list');
-            if (notice.comments.length === 0) {
-                commentsContainer.innerHTML = `<p class="text-xs text-slate-400 italic">등록된 메모가 없습니다.</p>`;
-            } else {
-                commentsContainer.innerHTML = notice.comments.map(c => `
-                    <div class="bg-slate-100 p-2.5 rounded-lg text-xs text-slate-700 flex justify-between items-center">
-                        <span>${c}</span>
-                    </div>
-                `).join('');
-            }
-
-            const filesContainer = document.getElementById('modal-files-list');
-            if (notice.files.length === 0) {
-                filesContainer.innerHTML = `<p class="text-xs text-slate-400 italic">첨부된 검토 파일이 없습니다.</p>`;
-            } else {
-                filesContainer.innerHTML = notice.files.map(f => `
-                    <div class="bg-blue-50 border border-blue-100 p-2 rounded-lg text-xs text-blue-800 flex justify-between items-center">
-                        <span class="flex items-center gap-1.5"><i data-lucide="file" class="w-3.5 h-3.5"></i> ${f}</span>
-                        <a href="#" onclick="alert('샘플 파일 다운로드입니다.')" class="text-blue-600 font-bold hover:underline">다운로드</a>
-                    </div>
-                `).join('');
-            }
-
-            lucide.createIcons();
-        }
+        function closeModal() { document.getElementById('modal-backdrop').classList.add('hidden'); }
 
         function addComment() {
             const input = document.getElementById('comment-input');
             if (!input.value.trim()) return;
-
-            const notice = notices.find(n => n.id === activeNoticeId);
-            if (notice) {
-                notice.comments.push(input.value.trim());
+            const n = notices.find(item => item.id === activeNoticeId);
+            if (n) {
+                if(!n.comments) n.comments = [];
+                n.comments.push(input.value.trim());
                 input.value = '';
-                renderModalContent();
+                openModal(activeNoticeId);
                 render();
             }
         }
 
-        function uploadFile() {
-            const fileInput = document.getElementById('file-input');
-            if (!fileInput.files || fileInput.files.length === 0) {
-                alert('업로드할 파일을 선택해 주세요.');
-                return;
-            }
-
-            const fileName = fileInput.files[0].name;
-            const notice = notices.find(n => n.id === activeNoticeId);
-            if (notice) {
-                notice.files.push(fileName);
-                fileInput.value = '';
-                renderModalContent();
-                render();
-                alert('파일이 정상적으로 추가되었습니다.');
-            }
-        }
-
-        // 페이지 로드 시 보안 확인 실행
         checkAuth();
     </script>
 </body>

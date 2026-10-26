@@ -15,7 +15,8 @@ now = datetime.now(KST)
 order_bgn_ym = now.strftime("%Y%m")
 order_end_ym = f"{now.year + 1}{now.month:02d}"
 
-inqryBgnDate12 = now.strftime("%Y%m%d") + "0000"
+# 💡 최근 12시간 대신 '7일 전(일주일 전)'부터 오늘까지 조회하도록 변경
+inqryBgnDate12 = (now - timedelta(days=7)).strftime("%Y%m%d") + "0000"
 today_str12 = now.strftime("%Y%m%d") + "2359"
 
 RAW_SERVICE_KEY = unquote(unquote(os.environ.get("SERVICE_KEY", "").strip()))
@@ -94,38 +95,44 @@ def format_datetime_str(dt_str):
 
 def check_bids():
     now = datetime.now(KST)
-    inqryBgnDt14 = (now - timedelta(hours=12)).strftime("%Y%m%d%H%M00")
+    # 💡 7일 전부터 오늘까지 조회하도록 기간 확장 (14자리 형식)
+    inqryBgnDt14 = (now - timedelta(days=7)).strftime("%Y%m%d") + "000000"
     inqryEndDt14 = now.strftime("%Y%m%d%H%M59")
 
     matched_bids, matched_plans, matched_specs = [], [], []
 
     # 본공고 조회
     for _, base_url in [("용역", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"), ("공사", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwk")]:
-        root = fetch_api_data(base_url, {"inqryDiv": "1", "inqryBgnDt": inqryBgnDt14, "inqryEndDt": inqryEndDt14, "pageNo": "1", "numOfRows": "100"})
-        items = root.findall(".//item") if root is not None else []
-        for item in items:
-            bid_nm = item.findtext('bidNtceNm') or '-'
-            if any(ex in bid_nm for ex in EXCLUDE_KEYWORDS): continue
-            if not (any(k in bid_nm for k in P1_KEYWORDS) or any(k in bid_nm for k in P2_KEYWORDS)): continue
+        page_no = 1
+        while page_no <= 3: # 7일간 데이터가 많을 수 있으므로 최대 3페이지(300건)까지 탐색
+            root = fetch_api_data(base_url, {"inqryDiv": "1", "inqryBgnDt": inqryBgnDt14, "inqryEndDt": inqryEndDt14, "pageNo": str(page_no), "numOfRows": "100"})
+            items = root.findall(".//item") if root is not None else []
+            if not items: break
+            for item in items:
+                bid_nm = item.findtext('bidNtceNm') or '-'
+                if any(ex in bid_nm for ex in EXCLUDE_KEYWORDS): continue
+                if not (any(k in bid_nm for k in P1_KEYWORDS) or any(k in bid_nm for k in P2_KEYWORDS)): continue
 
-            presmpt_prce = item.findtext('presmptPrce') or item.findtext('asignBdgAmt') or '0'
-            price_val = float(presmpt_prce.replace(',', '').strip()) if presmpt_prce.replace(',', '').strip().isdigit() else 0
+                presmpt_prce = item.findtext('presmptPrce') or item.findtext('asignBdgAmt') or '0'
+                price_val = float(presmpt_prce.replace(',', '').strip()) if presmpt_prce.replace(',', '').strip().isdigit() else 0
 
-            if (any(k in bid_nm for k in P1_KEYWORDS) and price_val >= 500000000) or any(k in bid_nm for k in P2_KEYWORDS):
-                matched_bids.append({
-                    'source_type': '본공고',
-                    'title': bid_nm,
-                    'notice_instt': item.findtext('ntceInsttNm') or '-',
-                    'raw_price': price_val,
-                    'notice_dt': format_datetime_str(item.findtext('bidNtceDt', '-')),
-                    'expl_info': format_datetime_str(item.findtext('dcmtgOprtnDt') or '-'),
-                    'reg_close_dt': format_datetime_str(item.findtext('bidQlfctRgstDt') or '-'),
-                    'bid_close_dt': format_datetime_str(item.findtext('bidClseDt') or '-'),
-                    'open_dt': format_datetime_str(item.findtext('opengDt') or '-'),
-                    'url': item.findtext('bidNtceDtlUrl', ''),
-                    'attachments': [],
-                    'chg_rsn': item.findtext('chgNtceRsn') or ''
-                })
+                if (any(k in bid_nm for k in P1_KEYWORDS) and price_val >= 500000000) or any(k in bid_nm for k in P2_KEYWORDS):
+                    matched_bids.append({
+                        'source_type': '본공고',
+                        'title': bid_nm,
+                        'notice_instt': item.findtext('ntceInsttNm') or '-',
+                        'raw_price': price_val,
+                        'notice_dt': format_datetime_str(item.findtext('bidNtceDt', '-')),
+                        'expl_info': format_datetime_str(item.findtext('dcmtgOprtnDt') or '-'),
+                        'reg_close_dt': format_datetime_str(item.findtext('bidQlfctRgstDt') or '-'),
+                        'bid_close_dt': format_datetime_str(item.findtext('bidClseDt') or '-'),
+                        'open_dt': format_datetime_str(item.findtext('opengDt') or '-'),
+                        'url': item.findtext('bidNtceDtlUrl', ''),
+                        'attachments': [],
+                        'chg_rsn': item.findtext('chgNtceRsn') or ''
+                    })
+            if len(items) < 100: break
+            page_no += 1
 
     all_matched_items = matched_bids + matched_plans + matched_specs
     save_web_dashboard_json(all_matched_items)

@@ -17,83 +17,112 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
 
-    <!-- 상단 헤더 -->
-    <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-blue-600 rounded-lg">
-                    <i data-lucide="building-2" class="w-6 h-6 text-white"></i>
-                </div>
+    <!-- 🔒 1단계: 접속 인증 로그인 모달 (비밀번호 미입력 시 전체 화면 차단) -->
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-100 text-center">
+            <div class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <i data-lucide="lock" class="w-7 h-7"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">스마트 모니터링 인증</h2>
+            <p class="text-xs text-slate-500 mb-6">팀원 전용 대시보드입니다. 비밀번호를 입력해 주세요.</p>
+            
+            <form onsubmit="verifyPassword(event)" class="space-y-4">
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">스마트 입찰·정비사업 모니터링</h1>
-                    <p class="text-xs text-slate-400">G2B 나라장터 & 민간 정비사업 실시간 대시보드</p>
+                    <input type="password" id="auth-password" placeholder="접속 비밀번호 입력" class="w-full px-4 py-3 border border-slate-300 rounded-xl text-center text-base focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
                 </div>
-            </div>
-
-            <!-- 우측 컨트롤 (새로고침 & 모드 스위치) -->
-            <div class="flex items-center gap-3">
-                <button onclick="refreshData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium border border-slate-700 transition">
-                    <i id="refresh-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
-                    <span>새로고침</span>
+                <p id="auth-error" class="text-xs text-rose-500 hidden font-semibold">⚠️ 비밀번호가 올바르지 않습니다.</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md">
+                    대시보드 접속하기
                 </button>
+            </form>
+            <p class="text-[11px] text-slate-400 mt-6">초기 기본 비밀번호: <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-600">1234</code></p>
+        </div>
+    </div>
 
-                <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 flex items-center">
-                    <button id="btn-user-mode" onclick="setRole('user')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition">
-                        👤 사용자 모드
+    <!-- 🌐 대시보드 메인 영역 (인증 완료 후 노출) -->
+    <div id="dashboard-main" class="hidden">
+        <!-- 상단 헤더 -->
+        <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <i data-lucide="building-2" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-white">스마트 입찰·정비사업 모니터링</h1>
+                        <p class="text-xs text-slate-400">G2B 나라장터 & 민간 정비사업 실시간 대시보드</p>
+                    </div>
+                </div>
+
+                <!-- 우측 컨트롤 (새로고침 & 모드 스위치 & 로그아웃) -->
+                <div class="flex items-center gap-3">
+                    <button onclick="refreshData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium border border-slate-700 transition">
+                        <i id="refresh-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>새로고침</span>
                     </button>
-                    <button id="btn-admin-mode" onclick="setRole('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition">
-                        ⚙️ 관리자 모드
+
+                    <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 flex items-center">
+                        <button id="btn-user-mode" onclick="setRole('user')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition">
+                            👤 사용자 모드
+                        </button>
+                        <button id="btn-admin-mode" onclick="setRole('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition">
+                            ⚙️ 관리자 모드
+                        </button>
+                    </div>
+
+                    <button onclick="logout()" title="로그아웃" class="p-2 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-lg border border-slate-700 transition">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
-        </div>
-    </header>
+        </header>
 
-    <!-- 메인 컨테이너 -->
-    <main class="max-w-7xl mx-auto px-4 mt-6">
+        <!-- 메인 컨테이너 -->
+        <main class="max-w-7xl mx-auto px-4 mt-6">
 
-        <!-- 상태 알림 바 -->
-        <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg flex items-center justify-between">
-            <span class="flex items-center gap-2">
-                <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
-                <span id="status-msg">최신 데이터를 불러왔습니다.</span>
-            </span>
-            <button onclick="document.getElementById('status-bar').classList.add('hidden')" class="text-blue-500 hover:text-blue-700">✕</button>
-        </div>
+            <!-- 상태 알림 바 -->
+            <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg flex items-center justify-between">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
+                    <span id="status-msg">최신 데이터를 불러왔습니다.</span>
+                </span>
+                <button onclick="document.getElementById('status-bar').classList.add('hidden')" class="text-blue-500 hover:text-blue-700">✕</button>
+            </div>
 
-        <!-- 탭 및 검색 바 -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <!-- 탭 메뉴 -->
-                <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                    <button onclick="setTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm">
-                        📋 전체공고현황
-                    </button>
-                    <button onclick="setTab('plan')" id="tab-plan" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                        📌 발주계획
-                    </button>
-                    <button onclick="setTab('spec')" id="tab-spec" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                        🔍 사전규격
-                    </button>
-                    <button onclick="setTab('bid')" id="tab-bid" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                        🏛️ 본공고 / 정비사업
-                    </button>
-                </div>
+            <!-- 탭 및 검색 바 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <!-- 탭 메뉴 -->
+                    <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                        <button onclick="setTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm">
+                            📋 전체공고현황
+                        </button>
+                        <button onclick="setTab('plan')" id="tab-plan" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
+                            📌 발주계획
+                        </button>
+                        <button onclick="setTab('spec')" id="tab-spec" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
+                            🔍 사전규격
+                        </button>
+                        <button onclick="setTab('bid')" id="tab-bid" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
+                            🏛️ 본공고 / 정비사업
+                        </button>
+                    </div>
 
-                <!-- 검색창 -->
-                <div class="relative w-full md:w-72">
-                    <input type="text" id="search-input" oninput="render()" placeholder="공고명, 기관명 검색..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    <!-- 검색창 -->
+                    <div class="relative w-full md:w-72">
+                        <input type="text" id="search-input" oninput="render()" placeholder="공고명, 기관명 검색..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 공고 컨테이너 영역 -->
-        <div id="notice-container">
-            <!-- JavaScript로 동적 생성 -->
-        </div>
+            <!-- 공고 컨테이너 영역 -->
+            <div id="notice-container">
+                <!-- JavaScript로 동적 생성 -->
+            </div>
 
-    </main>
+        </main>
+    </div>
 
     <!-- 댓글 & 첨부파일 모달 -->
     <div id="modal-backdrop" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -112,9 +141,7 @@
                     <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                         <i data-lucide="message-square" class="w-4 h-4 text-blue-600"></i> 팀원 의견 및 협업 메모
                     </h4>
-                    <div id="modal-comments-list" class="space-y-2 mb-3">
-                        <!-- 댓글 리스트 -->
-                    </div>
+                    <div id="modal-comments-list" class="space-y-2 mb-3"></div>
                     <div class="flex gap-2">
                         <input type="text" id="comment-input" placeholder="검토 의견이나 메모를 남겨주세요..." class="flex-1 text-sm px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <button onclick="addComment()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium">등록</button>
@@ -128,9 +155,7 @@
                     <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
                         <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> 관련 검토서 및 첨부파일
                     </h4>
-                    <div id="modal-files-list" class="space-y-2 mb-3">
-                        <!-- 파일 리스트 -->
-                    </div>
+                    <div id="modal-files-list" class="space-y-2 mb-3"></div>
                     <div class="flex items-center gap-2">
                         <input type="file" id="file-input" class="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                         <button onclick="uploadFile()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-medium">업로드</button>
@@ -141,7 +166,48 @@
     </div>
 
     <script>
-        // 초기 샘플 데이터
+        // -------------------------------------------------------------
+        // 🔑 보안 비밀번호 설정 (원하시는 비밀번호로 여기서 변경하세요!)
+        // -------------------------------------------------------------
+        const SITE_PASSWORD = "1234";        // 일반 접속 비밀번호
+        const ADMIN_PASSWORD = "admin1234";  // 관리자 모드 접속 비밀번호
+        // -------------------------------------------------------------
+
+        // 인증 상태 확인
+        function checkAuth() {
+            if (sessionStorage.getItem('authenticated') === 'true') {
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('dashboard-main').classList.remove('hidden');
+                render();
+            } else {
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('dashboard-main').classList.add('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        // 비밀번호 검증
+        function verifyPassword(event) {
+            event.preventDefault();
+            const inputPw = document.getElementById('auth-password').value;
+            const errorMsg = document.getElementById('auth-error');
+
+            if (inputPw === SITE_PASSWORD) {
+                sessionStorage.setItem('authenticated', 'true');
+                errorMsg.classList.add('hidden');
+                checkAuth();
+            } else {
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        // 로그아웃
+        function logout() {
+            sessionStorage.removeItem('authenticated');
+            checkAuth();
+        }
+
+        // 초기 데이터
         let notices = [
             {
                 id: "NOT001",
@@ -209,17 +275,25 @@
             }
         ];
 
-        let currentRole = 'user'; // 'user' | 'admin'
-        let currentTab = 'all';   // 'all' | 'plan' | 'spec' | 'bid'
+        let currentRole = 'user';
+        let currentTab = 'all';
         let activeNoticeId = null;
 
-        // 역할 변경
+        // 역할 변경 (관리자 모드 접속 시 추가 비밀번호 확인)
         function setRole(role) {
+            if (role === 'admin' && currentRole !== 'admin') {
+                const adminPw = prompt("⚙️ 관리자 모드 비밀번호를 입력해 주세요:");
+                if (adminPw !== ADMIN_PASSWORD) {
+                    alert("⚠️ 관리자 비밀번호가 올바르지 않습니다.");
+                    return;
+                }
+            }
+
             currentRole = role;
             document.getElementById('btn-user-mode').className = role === 'user' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
             document.getElementById('btn-admin-mode').className = role === 'admin' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
             
-            showStatus(role === 'admin' ? '⚙️ 관리자 모드로 전환되었습니다. (중요 지정 권한 부여)' : '👤 사용자 모드로 전환되었습니다.');
+            showStatus(role === 'admin' ? '⚙️ 관리자 권한이 승인되었습니다.' : '👤 사용자 모드로 전환되었습니다.');
             render();
         }
 
@@ -233,7 +307,7 @@
             render();
         }
 
-        // 중요 공고 토글 (관리자 기능)
+        // 중요 공고 토글
         function toggleImportant(id, event) {
             event.stopPropagation();
             const notice = notices.find(n => n.id === id);
@@ -256,14 +330,13 @@
             }, 800);
         }
 
-        // 상태 메시지 출력
         function showStatus(msg) {
             const bar = document.getElementById('status-bar');
             document.getElementById('status-msg').innerText = msg;
             bar.classList.remove('hidden');
         }
 
-        // 공고 카드리스트 렌더링
+        // 카드리스트 렌더링
         function renderCard(item) {
             const isRedevelopment = item.ntceKindNm === '정비사업' || item.ntceNm.includes('정비사업');
             const isImportant = item.isImportant;
@@ -297,7 +370,6 @@
                         ${item.ntceNm}
                     </h3>
 
-                    <!-- 기관 및 금액 정보 -->
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-3 rounded-lg mb-3 border border-slate-100">
                         <div><span class="text-slate-400 block">발주/수요처</span><span class="font-semibold text-slate-700">${item.organ}</span></div>
                         ${!isRedevelopment ? `<div><span class="text-slate-400 block">추정용역비</span><span class="font-bold text-blue-600">${item.price}</span></div>` : '<div><span class="text-slate-400 block">구분</span><span class="font-bold text-amber-600">민간 정비사업</span></div>'}
@@ -305,7 +377,6 @@
                         <div><span class="text-slate-400 block">제출마감일</span><span class="font-semibold text-rose-600">${item.dateLimit}</span></div>
                     </div>
 
-                    <!-- 변경 사유 경고 표시 -->
                     ${item.chgRsn ? `
                         <div class="mb-3 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-start gap-1.5">
                             <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
@@ -313,7 +384,6 @@
                         </div>
                     ` : ''}
 
-                    <!-- 하단 댓글 & 첨부 정보 버튼 -->
                     <div class="flex justify-between items-center text-xs text-slate-500 pt-2 border-t border-slate-100">
                         <div class="flex items-center gap-3">
                             <span class="flex items-center gap-1"><i data-lucide="message-square" class="w-3.5 h-3.5 text-slate-400"></i> 댓글 ${item.comments.length}</span>
@@ -327,11 +397,165 @@
             `;
         }
 
-        // 전체 화면 렌더링
         function render() {
             const container = document.getElementById('notice-container');
             const searchKeyword = document.getElementById('search-input').value.toLowerCase();
 
-            // 필터링
             let filtered = notices.filter(n => {
                 const matchSearch = n.ntceNm.toLowerCase().includes(searchKeyword) || n.organ.toLowerCase().includes(searchKeyword);
+                if (!matchSearch) return false;
+
+                if (currentTab === 'plan') return n.ntceKindNm === '발주계획';
+                if (currentTab === 'spec') return n.ntceKindNm === '사전규격';
+                if (currentTab === 'bid') return n.ntceKindNm === '본공고' || n.ntceKindNm === '정비사업';
+                return true;
+            });
+
+            filtered.sort((a, b) => (b.isImportant ? 1 : 0) - (a.isImportant ? 1 : 0));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-xl p-12 text-center text-slate-400 border border-slate-200">
+                        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+                        <p class="text-sm font-medium">검색된 공고가 없습니다.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            if (currentTab === 'all') {
+                const plans = filtered.filter(n => n.ntceKindNm === '발주계획');
+                const specs = filtered.filter(n => n.ntceKindNm === '사전규격');
+                const bids = filtered.filter(n => n.ntceKindNm === '본공고' || n.ntceKindNm === '정비사업');
+
+                container.innerHTML = `
+                    <div class="space-y-8">
+                        ${plans.length > 0 ? `
+                            <section class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-5">
+                                <h2 class="text-base font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> 📌 발주계획 (${plans.length}건)
+                                </h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${plans.map(renderCard).join('')}
+                                </div>
+                            </section>
+                        ` : ''}
+
+                        ${specs.length > 0 ? `
+                            <section class="bg-purple-50/40 border border-purple-100 rounded-2xl p-5">
+                                <h2 class="text-base font-bold text-purple-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> 🔍 사전규격 (${specs.length}건)
+                                </h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${specs.map(renderCard).join('')}
+                                </div>
+                            </section>
+                        ` : ''}
+
+                        ${bids.length > 0 ? `
+                            <section class="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-5">
+                                <h2 class="text-base font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> 🏛️ 본공고 및 정비사업 (${bids.length}건)
+                                </h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${bids.map(renderCard).join('')}
+                                </div>
+                            </section>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${filtered.map(renderCard).join('')}
+                    </div>
+                `;
+            }
+
+            lucide.createIcons();
+        }
+
+        // 모달 관리
+        function openModal(id) {
+            activeNoticeId = id;
+            const notice = notices.find(n => n.id === id);
+            if (!notice) return;
+
+            document.getElementById('modal-category').innerText = notice.ntceKindNm;
+            document.getElementById('modal-title').innerText = notice.ntceNm;
+
+            renderModalContent();
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+        }
+
+        function renderModalContent() {
+            const notice = notices.find(n => n.id === activeNoticeId);
+            if (!notice) return;
+
+            const commentsContainer = document.getElementById('modal-comments-list');
+            if (notice.comments.length === 0) {
+                commentsContainer.innerHTML = `<p class="text-xs text-slate-400 italic">등록된 메모가 없습니다.</p>`;
+            } else {
+                commentsContainer.innerHTML = notice.comments.map(c => `
+                    <div class="bg-slate-100 p-2.5 rounded-lg text-xs text-slate-700 flex justify-between items-center">
+                        <span>${c}</span>
+                    </div>
+                `).join('');
+            }
+
+            const filesContainer = document.getElementById('modal-files-list');
+            if (notice.files.length === 0) {
+                filesContainer.innerHTML = `<p class="text-xs text-slate-400 italic">첨부된 검토 파일이 없습니다.</p>`;
+            } else {
+                filesContainer.innerHTML = notice.files.map(f => `
+                    <div class="bg-blue-50 border border-blue-100 p-2 rounded-lg text-xs text-blue-800 flex justify-between items-center">
+                        <span class="flex items-center gap-1.5"><i data-lucide="file" class="w-3.5 h-3.5"></i> ${f}</span>
+                        <a href="#" onclick="alert('샘플 파일 다운로드입니다.')" class="text-blue-600 font-bold hover:underline">다운로드</a>
+                    </div>
+                `).join('');
+            }
+
+            lucide.createIcons();
+        }
+
+        function addComment() {
+            const input = document.getElementById('comment-input');
+            if (!input.value.trim()) return;
+
+            const notice = notices.find(n => n.id === activeNoticeId);
+            if (notice) {
+                notice.comments.push(input.value.trim());
+                input.value = '';
+                renderModalContent();
+                render();
+            }
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('업로드할 파일을 선택해 주세요.');
+                return;
+            }
+
+            const fileName = fileInput.files[0].name;
+            const notice = notices.find(n => n.id === activeNoticeId);
+            if (notice) {
+                notice.files.push(fileName);
+                fileInput.value = '';
+                renderModalContent();
+                render();
+                alert('파일이 정상적으로 추가되었습니다.');
+            }
+        }
+
+        // 페이지 로드 시 보안 확인 실행
+        checkAuth();
+    </script>
+</body>
+</html>

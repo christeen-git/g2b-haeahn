@@ -1,275 +1,358 @@
-import sys
-import os
-import json
-import requests
-import xml.etree.ElementTree as ET
-import smtplib
-import subprocess
-from urllib.parse import unquote, quote
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta, timezone
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>알리미2 - 입찰 및 정비사업 통합 모니터링</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; }
+        .gold-glow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.35); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
 
-# 콘솔 출력 버퍼링 해제 (GitHub Actions 실시간 로그 출력)
-sys.stdout.reconfigure(line_buffering=True)
+    <!-- 로그인 보안 모달 -->
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-100 text-center">
+            <div class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <i data-lucide="lock" class="w-7 h-7"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">알리미2 인증</h2>
+            <p class="text-xs text-slate-500 mb-6">전용 대시보드입니다. 비밀번호를 입력해 주세요.</p>
+            
+            <form onsubmit="verifyPassword(event)" class="space-y-4">
+                <div>
+                    <input type="password" id="auth-password" placeholder="접속 비밀번호 입력" class="w-full px-4 py-3 border border-slate-300 rounded-xl text-center text-base focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                </div>
+                <p id="auth-error" class="text-xs text-rose-500 hidden font-semibold">⚠️ 비밀번호가 올바르지 않습니다.</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md">
+                    대시보드 접속하기
+                </button>
+            </form>
+            <p class="text-[11px] text-slate-400 mt-6">기본 비밀번호: <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-600">1234</code></p>
+        </div>
+    </div>
 
-# 한국 표준시(KST: UTC+9) 고정
-KST = timezone(timedelta(hours=9))
-now = datetime.now(KST)
+    <!-- 대시보드 메인 -->
+    <div id="dashboard-main" class="hidden">
+        <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <i data-lucide="building-2" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-white">알리미2 - 입찰·정비사업 아카이브</h1>
+                        <p class="text-xs text-slate-400">나라장터 공고 누적 모니터링 & 캘린더</p>
+                    </div>
+                </div>
 
-# 날짜 및 기간 설정
-order_bgn_ym = now.strftime("%Y%m")
-order_end_ym = f"{now.year + 1}{now.month:02d}"
+                <div class="flex items-center gap-3">
+                    <button onclick="loadNotices()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium border border-slate-700 transition">
+                        <i id="refresh-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>새로고침</span>
+                    </button>
 
-inqryBgnDate12 = now.strftime("%Y%m%d") + "0000"
-today_str12 = now.strftime("%Y%m%d") + "2359"
+                    <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 flex items-center">
+                        <button id="btn-user-mode" onclick="setRole('user')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition">👤 사용자</button>
+                        <button id="btn-admin-mode" onclick="setRole('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition">⚙️ 관리자</button>
+                    </div>
 
-RAW_SERVICE_KEY = unquote(unquote(os.environ.get("SERVICE_KEY", "").strip()))
+                    <button onclick="logout()" title="로그아웃" class="p-2 bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 rounded-lg border border-slate-700 transition">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
 
-GMAIL_USER = os.environ.get("GMAIL_USER")
-GMAIL_APP_KEY = os.environ.get("GMAIL_APP_KEY")
-TO_EMAIL = os.environ.get("TO_EMAIL")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-FORWARD_CHAT_ID = os.environ.get("FORWARD_CHAT_ID")
+        <main class="max-w-7xl mx-auto px-4 mt-6">
+            <div id="status-bar" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg flex items-center justify-between">
+                <span class="flex items-center gap-2"><i data-lucide="info" class="w-4 h-4 text-blue-600"></i><span id="status-msg">데이터를 불러왔습니다.</span></span>
+                <button onclick="document.getElementById('status-bar').classList.add('hidden')" class="text-blue-500 hover:text-blue-700">✕</button>
+            </div>
 
-SENT_FILE = "sent_notices.json"
-WEB_JSON_FILE = "notices.json" # 웹 대시보드 연동용 파일
+            <!-- 검색 및 탭 바 -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                        <button onclick="setTab('all')" id="tab-all" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm">📋 전체공고현황</button>
+                        <button onclick="setTab('bid')" id="tab-bid" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">🏛️ 본공고</button>
+                        <button onclick="setTab('spec')" id="tab-spec" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">🔍 사전규격</button>
+                        <button onclick="setTab('plan')" id="tab-plan" class="tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">📌 발주계획</button>
+                    </div>
 
-P1_KEYWORDS = ["설계", "건립", "신축", "개발"]
-P2_KEYWORDS = ["타당성", "마스터", "기본계획", "기본구상", "공모관리", "공모 관리"]
-EXCLUDE_KEYWORDS = ["건설사업관리용역", "폐기물", "감리자", "내진보강"]
+                    <div class="relative w-full md:w-72">
+                        <input type="text" id="search-input" oninput="render()" placeholder="공고명, 기관명 검색..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    </div>
+                </div>
+            </div>
 
-def load_sent_notices():
-    if os.path.exists(SENT_FILE):
-        try:
-            with open(SENT_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-        except Exception:
-            return set()
-    return set()
+            <!-- 메인 레이아웃: 좌측 공고 목록 / 우측 캘린더 -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- 공고 리스트 영역 (3칸) -->
+                <div class="lg:col-span-3" id="notice-container"></div>
 
-def save_sent_notices(sent_set):
-    try:
-        limited_list = list(sent_set)[-1000:]
-        with open(SENT_FILE, "w", encoding="utf-8") as f:
-            json.dump(limited_list, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"중복 방지 파일 저장 중 오류: {e}")
+                <!-- 우측 캘린더 영역 (1칸) -->
+                <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm h-fit sticky top-24">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 id="cal-month-title" class="font-bold text-slate-800 text-base">2026년 10월</h3>
+                        <div class="flex gap-1">
+                            <button onclick="changeMonth(-1)" class="p-1.5 hover:bg-slate-100 rounded text-slate-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <button onclick="changeMonth(1)" class="p-1.5 hover:bg-slate-100 rounded text-slate-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <!-- 요일 헤더 -->
+                    <div class="grid grid-cols-7 text-center text-xs font-semibold text-slate-400 mb-2">
+                        <span class="text-rose-500">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="text-blue-500">토</span>
+                    </div>
+                    <!-- 날짜 그리드 -->
+                    <div id="cal-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs"></div>
+                    <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>📅 날짜 클릭시 해당일 공고 필터</span>
+                        <button onclick="clearDateFilter()" class="text-blue-600 font-semibold hover:underline">전체 보기</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-# 웹 대시보드(index.html) 형식에 맞춰 notices.json 저장 및 깃허브 자동 푸시
-def save_web_dashboard_json(items):
-    formatted_list = []
-    for idx, item in enumerate(items, 1):
-        raw_price = item.get('raw_price', 0)
-        notice_dt = item.get('notice_dt', '-')
-        expl_info = item.get('expl_info', '-')
-        reg_close = item.get('reg_close_dt', '-')
-        bid_close = item.get('bid_close_dt', '-')
-        open_dt = item.get('open_dt', '-')
+    <script>
+        const SITE_PASSWORD = "1234";
+        const ADMIN_PASSWORD = "admin1234";
+        let notices = [];
+        let currentRole = 'user';
+        let currentTab = 'all';
+        let selectedDateFilter = null; // 캘린더 날짜 필터
+        let calYear = new Date().getFullYear();
+        let calMonth = new Date().getMonth();
 
-        formatted_list.append({
-            "id": f"AUTO_{idx:03d}",
-            "ntceKindNm": item.get('source_type'),
-            "ntceNm": item.get('title'),
-            "organ": item.get('notice_instt'),
-            "price": raw_price,
-            "dateNotice": notice_dt,
-            "dateBrief": expl_info,
-            "dateLimit": bid_close if bid_close != '-' else reg_close,
-            "dateOpen": open_dt,
-            "chgRsn": item.get('chg_rsn', ''),
-            "isImportant": False,
-            "url": item.get('url', ''),
-            "comments": [],
-            "files": [att['name'] for att in item.get('attachments', [])]
-        })
+        function checkAuth() {
+            if (sessionStorage.getItem('authenticated') === 'true') {
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('dashboard-main').classList.remove('hidden');
+                loadNotices();
+            } else {
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('dashboard-main').classList.add('hidden');
+            }
+            lucide.createIcons();
+        }
 
-    try:
-        with open(WEB_JSON_FILE, "w", encoding="utf-8") as f:
-            json.dump(formatted_list, f, ensure_ascii=False, indent=4)
-        print(f"웹 대시보드 연동 파일({WEB_JSON_FILE}) 생성 완료.")
-        
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
-            subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
-            subprocess.run(["git", "add", WEB_JSON_FILE], check=True)
-            status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
-            if status.stdout.strip():
-                subprocess.run(["git", "commit", "-m", "Auto-update notices.json via bot [skip ci]"], check=True)
-                subprocess.run(["git", "push"], check=True)
-                print("notices.json 깃허브 자동 푸시 완료!")
-    except Exception as e:
-        print(f"웹 대시보드 JSON 저장 및 푸시 중 오류: {e}")
+        function verifyPassword(event) {
+            event.preventDefault();
+            if (document.getElementById('auth-password').value === SITE_PASSWORD) {
+                sessionStorage.setItem('authenticated', 'true');
+                checkAuth();
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+            }
+        }
 
-def get_item_key(item):
-    return f"{item.get('source_type')}_{item.get('title')}_{item.get('notice_dt')}"
+        function logout() {
+            sessionStorage.removeItem('authenticated');
+            checkAuth();
+        }
 
-def fetch_api_data(base_url, query_params):
-    if not RAW_SERVICE_KEY:
-        print("    [경고] SERVICE_KEY가 설정되지 않았습니다.")
-        return None
+        async function loadNotices() {
+            const icon = document.getElementById('refresh-icon');
+            if(icon) icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('notices.json?t=' + new Date().getTime());
+                if (res.ok) {
+                    notices = await res.json();
+                }
+            } catch (e) {
+                console.log("notices.json 로드 대기 중...");
+            }
+            if(icon) icon.classList.remove('animate-spin');
+            render();
+            renderCalendar();
+        }
 
-    try:
-        encoded_key = quote(RAW_SERVICE_KEY, safe='')
-        query_str = "&".join([f"{k}={v}" for k, v in query_params.items()])
-        full_url = f"{base_url}?{query_str}&ServiceKey={encoded_key}"
-        response = requests.get(full_url, timeout=15)
-        if response.status_code != 200: return None
-        if "<errMsg>" in response.text or "<returnAuthMsg>" in response.text or "SERVICE ERROR" in response.text: return None
-        return ET.fromstring(response.text)
-    except Exception as e:
-        return None
+        function formatPrice(price) {
+            if (!price || price === 0) return '민간/기타';
+            return (price / 100000000).toFixed(1) + '억 원';
+        }
 
-def format_datetime_str(dt_str):
-    if not dt_str or dt_str == '-': return '-'
-    clean_str = "".join(filter(str.isdigit, dt_str))
-    try:
-        if len(clean_str) >= 12: return f"{clean_str[:4]}-{clean_str[4:6]}-{clean_str[6:8]}"
-        elif len(clean_str) == 8: return f"{clean_str[:4]}-{clean_str[4:6]}-{clean_str[6:8]}"
-    except Exception: pass
-    return dt_str
+        // 본공고 D-day 계산 함수
+        function getDday(limitDateStr) {
+            if (!limitDateStr || limitDateStr === '-') return null;
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const limitDate = new Date(limitDateStr);
+            limitDate.setHours(0,0,0,0);
+            
+            const diffTime = limitDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays > 0) return `D-${diffDays}`;
+            if (diffDays === 0) return `D-Day`;
+            return `마감됨`;
+        }
 
-def extract_attachments(item):
-    attachments_map = {}
-    for child in item:
-        tag, val = child.tag, (child.text or "").strip()
-        if not val: continue
-        if "url" in tag.lower():
-            digits = "".join(filter(str.isdigit, tag)) or "1"
-            attachments_map.setdefault(digits, {'name': '', 'url': ''})['url'] = val
-        elif "filenm" in tag.lower() or "specfile" in tag.lower() or "docnm" in tag.lower():
-            digits = "".join(filter(str.isdigit, tag)) or "1"
-            attachments_map.setdefault(digits, {'name': '', 'url': ''})['name'] = val
-    return [{'name': info['name'] or f"첨부문서_{idx}", 'url': info['url']} for idx, info in sorted(attachments_map.items()) if info['url']]
+        function setRole(role) {
+            if (role === 'admin' && currentRole !== 'admin') {
+                if (prompt("⚙️ 관리자 비밀번호를 입력해 주세요:") !== ADMIN_PASSWORD) {
+                    alert("⚠️ 비밀번호가 틀렸습니다.");
+                    return;
+                }
+            }
+            currentRole = role;
+            document.getElementById('btn-user-mode').className = role === 'user' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
+            document.getElementById('btn-admin-mode').className = role === 'admin' ? 'px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-600 text-white transition' : 'px-3 py-1.5 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
+            render();
+        }
 
-def send_telegram_single(text):
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}, timeout=10)
-    except Exception: pass
+        function setTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100');
+            document.getElementById(`tab-${tab}`).className = 'tab-btn px-4 py-2.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm';
+            render();
+        }
 
-def check_bids():
-    now = datetime.now(KST)
-    weekday, hour, minute = now.weekday(), now.hour, now.minute
-    lookback_minutes = 40
-    if weekday == 0 and hour == 8 and minute < 30: lookback_minutes = 3730
-    elif hour == 8: lookback_minutes = 780
+        function filterByDate(dateStr) {
+            selectedDateFilter = selectedDateFilter === dateStr ? null : dateStr;
+            render();
+            renderCalendar();
+        }
 
-    past_time = now - timedelta(minutes=lookback_minutes)
-    inqryBgnDt14 = past_time.strftime("%Y%m%d%H%M00")
-    inqryEndDt14 = now.strftime("%Y%m%d%H%M59")
+        function clearDateFilter() {
+            selectedDateFilter = null;
+            render();
+            renderCalendar();
+        }
 
-    matched_bids, matched_plans, matched_specs = [], [], []
+        // 캘린더 렌더링
+        function renderCalendar() {
+            const titleEl = document.getElementById('cal-month-title');
+            const gridEl = document.getElementById('cal-days-grid');
+            titleEl.innerText = `${calYear}년 ${calMonth + 1}월`;
 
-    # 1. 본공고 API
-    for category_name, base_url in [("용역", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"), ("공사", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwk")]:
-        page_no = 1
-        while True:
-            root = fetch_api_data(base_url, {"inqryDiv": "1", "inqryBgnDt": inqryBgnDt14, "inqryEndDt": inqryEndDt14, "pageNo": str(page_no), "numOfRows": "100"})
-            items = root.findall(".//item") if root is not None else []
-            if not items: break
-            for item in items:
-                bid_nm = item.findtext('bidNtceNm') or '-'
-                if any(ex in bid_nm for ex in EXCLUDE_KEYWORDS): continue
-                if not (any(k in bid_nm for k in P1_KEYWORDS) or any(k in bid_nm for k in P2_KEYWORDS)): continue
+            const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
+            const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
 
-                presmpt_prce = item.findtext('presmptPrce') or item.findtext('asignBdgAmt') or '0'
-                price_val = float(presmpt_prce.replace(',', '').strip()) if presmpt_prce.replace(',', '').strip().isdigit() else 0
+            let daysHtml = '';
+            for (let i = 0; i < firstDayIndex; i++) {
+                daysHtml += `<div></div>`;
+            }
 
-                if (any(k in bid_nm for k in P1_KEYWORDS) and price_val >= 500000000) or any(k in bid_nm for k in P2_KEYWORDS):
-                    matched_bids.append({
-                        'source_type': '본공고',
-                        'title': bid_nm,
-                        'notice_instt': item.findtext('ntceInsttNm') or '-',
-                        'demand_instt': item.findtext('dminsttNm', '-'),
-                        'raw_price': price_val,
-                        'price': f"{int(price_val):,}원",
-                        'notice_dt': format_datetime_str(item.findtext('bidNtceDt', '-')),
-                        'expl_info': format_datetime_str(item.findtext('dcmtgOprtnDt') or '-'),
-                        'reg_close_dt': format_datetime_str(item.findtext('bidQlfctRgstDt') or '-'),
-                        'bid_close_dt': format_datetime_str(item.findtext('bidClseDt') or '-'),
-                        'open_dt': format_datetime_str(item.findtext('opengDt') or '-'),
-                        'url': item.findtext('bidNtceDtlUrl', ''),
-                        'attachments': extract_attachments(item),
-                        'chg_rsn': item.findtext('chgNtceRsn') or ''
-                    })
-            if len(items) < 100: break
-            page_no += 1
+            for (let day = 1; day <= totalDays; day++) {
+                const mStr = String(calMonth + 1).padStart(2, '0');
+                const dStr = String(day).padStart(2, '0');
+                const dateStr = `${calYear}-${mStr}-${dStr}`;
 
-    # 2. 발주계획 API
-    for category_name, base_url in [("용역", "http://apis.data.go.kr/1230000/ao/OrderPlanSttusService/getOrderPlanSttusListServc"), ("공사", "http://apis.data.go.kr/1230000/ao/OrderPlanSttusService/getOrderPlanSttusListCnstwk")]:
-        root = fetch_api_data(base_url, {"inqryDiv": "1", "orderBgnYm": order_bgn_ym, "orderEndYm": order_end_ym, "inqryBgnDt": inqryBgnDate12, "inqryEndDt": today_str12, "numOfRows": "500"})
-        if root is not None:
-            for item in root.findall(".//item"):
-                biz_nm = item.findtext('bizNm') or item.findtext('orderPlanNm') or '-'
-                if any(ex in biz_nm for ex in EXCLUDE_KEYWORDS): continue
-                if not (any(k in biz_nm for k in P1_KEYWORDS) or any(k in biz_nm for k in P2_KEYWORDS)): continue
+                // 해당 날짜에 공고가 있는지 확인
+                const hasNotice = notices.some(n => n.dateNotice === dateStr);
+                const isSelected = selectedDateFilter === dateStr;
 
-                sum_order_amt = item.findtext('sumOrderAmt') or '0'
-                price_val = float(sum_order_amt.replace(',', '').strip()) if sum_order_amt.replace(',', '').strip().isdigit() else 0
+                let btnClass = "w-7 h-7 mx-auto rounded-full flex items-center justify-center text-xs font-medium transition ";
+                if (isSelected) {
+                    btnClass += "bg-blue-600 text-white font-bold shadow-sm";
+                } else if (hasNotice) {
+                    btnClass += "bg-blue-50 text-blue-600 font-bold border border-blue-200 hover:bg-blue-100";
+                } else {
+                    btnClass += "text-slate-700 hover:bg-slate-100";
+                }
 
-                if (any(k in biz_nm for k in P1_KEYWORDS) and price_val >= 500000000) or any(k in biz_nm for k in P2_KEYWORDS):
-                    matched_plans.append({
-                        'source_type': '발주계획',
-                        'title': biz_nm,
-                        'notice_instt': item.findtext('orderInsttNm') or '-',
-                        'demand_instt': '-',
-                        'raw_price': price_val,
-                        'price': f"{int(price_val):,}원",
-                        'notice_dt': format_datetime_str(item.findtext('nticeDt', '-')),
-                        'expl_info': f"{item.findtext('orderYear', '')}년 {item.findtext('orderMnth', '')}월",
-                        'reg_close_dt': '-',
-                        'bid_close_dt': '-',
-                        'open_dt': '-',
-                        'url': item.findtext('orderPlanDtlUrl', ''),
-                        'attachments': [],
-                        'chg_rsn': ''
-                    })
+                daysHtml += `<div><button onclick="filterByDate('${dateStr}')" class="${btnClass}">${day}</button></div>`;
+            }
+            gridEl.innerHTML = daysHtml;
+            lucide.createIcons();
+        }
 
-    # 3. 사전규격 API
-    for category_name, base_url in [("용역", "http://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServc"), ("공사", "http://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoCnstwk")]:
-        for inqry_div in ["1", "2"]:
-            root = fetch_api_data(base_url, {"inqryDiv": inqry_div, "inqryBgnDt": inqryBgnDate12, "inqryEndDt": today_str12, "numOfRows": "500"})
-            if root is not None:
-                for item in root.findall(".//item"):
-                    product_nm = item.findtext('prdctClsfcNoNm') or item.findtext('ntceNm') or '-'
-                    if any(ex in product_nm for ex in EXCLUDE_KEYWORDS): continue
-                    if not (any(k in product_nm for k in P1_KEYWORDS) or any(k in product_nm for k in P2_KEYWORDS)): continue
+        function changeMonth(diff) {
+            calMonth += diff;
+            if (calMonth > 11) { calMonth = 0; calYear++; }
+            else if (calMonth < 0) { calMonth = 11; calYear--; }
+            renderCalendar();
+        }
 
-                    assign_budget = item.findtext('asignBdgtAmt') or '0'
-                    price_val = float(assign_budget.replace(',', '').strip()) if assign_budget.replace(',', '').strip().isdigit() else 0
+        function toggleImportant(id, event) {
+            event.stopPropagation();
+            const n = notices.find(item => item.id === id);
+            if (n) { n.isImportant = !n.isImportant; render(); }
+        }
 
-                    if (any(k in product_nm for k in P1_KEYWORDS) and price_val >= 500000000) or any(k in product_nm for k in P2_KEYWORDS):
-                        matched_specs.append({
-                            'source_type': '사전규격',
-                            'title': product_nm,
-                            'notice_instt': item.findtext('orderInsttNm') or '-',
-                            'demand_instt': item.findtext('rlDminsttNm') or '-',
-                            'raw_price': price_val,
-                            'price': f"{int(price_val):,}원",
-                            'notice_dt': format_datetime_str(item.findtext('rcptDt') or '-'),
-                            'expl_info': '-',
-                            'reg_close_dt': '-',
-                            'bid_close_dt': format_datetime_str(item.findtext('opninRgstClseDt', '-')),
-                            'open_dt': '-',
-                            'url': '',
-                            'attachments': extract_attachments(item),
-                            'chg_rsn': ''
-                        })
+        function renderCard(item) {
+            const isImportant = item.isImportant;
+            const isNew = item.isNew; // 신규 축적 공고 New 표시
+            const dday = item.ntceKindNm === '본공고' ? getDday(item.dateLimit) : null;
 
-    all_matched_items = matched_bids + matched_plans + matched_specs
+            return `
+                <div class="bg-white rounded-xl p-5 border ${isImportant ? 'border-amber-400 bg-amber-50/20 gold-glow relative' : 'border-slate-200'} shadow-sm transition flex flex-col justify-between mb-4">
+                    <div>
+                        <div class="flex justify-between items-start gap-3 mb-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded ${item.ntceKindNm === '본공고' ? 'bg-emerald-100 text-emerald-700' : item.ntceKindNm === '사전규격' ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'}">${item.ntceKindNm}</span>
+                                ${isNew ? '<span class="text-[10px] font-bold bg-rose-500 text-white px-1.5 py-0.5 rounded animate-pulse">NEW</span>' : ''}
+                                ${dday ? `<span class="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">${dday}</span>` : ''}
+                                <span class="text-xs text-slate-400 font-mono">${item.id}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${item.url ? `<a href="${item.url}" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md font-medium flex items-center gap-1"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> 원문 링크</a>` : ''}
+                                ${currentRole === 'admin' ? `<button onclick="toggleImportant('${item.id}', event)" class="text-xs font-semibold px-2.5 py-1 rounded-md border ${isImportant ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-slate-100 border-slate-200 text-slate-600'}"><i data-lucide="star" class="w-3.5 h-3.5 ${isImportant ? 'fill-amber-500 text-amber-500' : ''}"></i> ${isImportant ? '해제' : '지정'}</button>` : ''}
+                            </div>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900 mb-3">${item.ntceNm}</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div><span class="text-slate-400 block">발주/수요처</span><span class="font-semibold text-slate-700">${item.organ}</span></div>
+                            <div><span class="text-slate-400 block">추정용역비</span><span class="font-bold text-blue-600">${formatPrice(item.price)}</span></div>
+                            <div><span class="text-slate-400 block">공고일 / 현설일</span><span class="font-medium text-slate-700">${item.dateNotice} / ${item.dateBrief}</span></div>
+                            <div><span class="text-slate-400 block">마감일 / 개찰일</span><span class="font-semibold text-rose-600">${item.dateLimit} / ${item.dateOpen}</span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
-    # 웹 대시보드 연동 파일 생성 및 푸시 수행
-    save_web_dashboard_json(all_matched_items)
+        function render() {
+            const container = document.getElementById('notice-container');
+            const kw = document.getElementById('search-input').value.toLowerCase();
 
-    sent_notices = load_sent_notices()
-    new_matched_items = [item for item in all_matched_items if get_item_key(item) not in sent_notices]
-    for item in new_matched_items: sent_notices.add(get_item_key(item))
+            let filtered = notices.filter(n => {
+                if (selectedDateFilter && n.dateNotice !== selectedDateFilter) return false;
+                if (kw && !n.ntceNm.toLowerCase().includes(kw) && !n.organ.toLowerCase().includes(kw)) return false;
+                if (currentTab === 'bid') return n.ntceKindNm === '본공고';
+                if (currentTab === 'spec') return n.ntceKindNm === '사전규격';
+                if (currentTab === 'plan') return n.ntceKindNm === '발주계획';
+                return true;
+            });
 
-    if new_matched_items:
-        save_sent_notices(sent_notices)
-    else:
-        send_telegram_single("<b>[나라장터 알림]</b>\n\n신규 공고 없음")
+            // 중요 공고 우선, 과거 공고부터 오름차순 정렬
+            filtered.sort((a, b) => {
+                if (b.isImportant !== a.isImportant) return (b.isImportant ? 1 : 0) - (a.isImportant ? 1 : 0);
+                return new Date(a.dateNotice || 0) - new Date(b.dateNotice || 0);
+            });
 
-if __name__ == "__main__":
-    check_bids()
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="bg-white rounded-xl p-12 text-center text-slate-400 border border-slate-200">조건에 맞는 공고가 없습니다.</div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            if (currentTab === 'all' && !selectedDateFilter) {
+                const bids = filtered.filter(n => n.ntceKindNm === '본공고');
+                const specs = filtered.filter(n => n.ntceKindNm === '사전규격');
+                const plans = filtered.filter(n => n.ntceKindNm === '발주계획');
+
+                container.innerHTML = `
+                    <div class="space-y-6">
+                        ${bids.length ? `<section class="bg-emerald-50/40 border border-emerald-100 rounded-2xl p-4"><h2 class="text-sm font-bold text-emerald-900 mb-3">🏛️ 본공고 (${bids.length}건)</h2>${bids.map(renderCard).join('')}</section>` : ''}
+                        ${specs.length ? `<section class="bg-purple-50/40 border border-purple-100 rounded-2xl p-4"><h2 class="text-sm font-bold text-purple-900 mb-3">🔍 사전규격 (${specs.length}건)</h2>${specs.map(renderCard).join('')}</section>` : ''}
+                        ${plans.length ? `<section class="bg-indigo-50/40 border border-indigo-100 rounded-2xl p-4"><h2 class="text-sm font-bold text-indigo-900 mb-3">📌 발주계획 (${plans.length}건)</h2>${plans.map(renderCard).join('')}</section>` : ''}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = filtered.map(renderCard).join('');
+            }
+            lucide.createIcons();
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>

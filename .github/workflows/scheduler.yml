@@ -2,11 +2,8 @@ name: G2B Public Notice Scheduler
 
 on:
   repository_dispatch:
-    types: [run-g2b-bot]
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    types: [run-bot]  # cron-job.org에서 보내는 신호를 받는 핵심 설정!
+  workflow_dispatch:  # 수동 실행 버튼도 유지
 
 jobs:
   run-bot:
@@ -27,10 +24,5 @@ jobs:
       - name: Run script
         env:
           SERVICE_KEY: ${{ secrets.SERVICE_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GMAIL_APP_KEY: ${{ secrets.GMAIL_APP_KEY }}
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          TO_EMAIL: ${{ secrets.TO_EMAIL }}
         run: |
           python main.py

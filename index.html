@@ -34,10 +34,10 @@
                     <i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i> 새로고침
                 </button>
                 <div class="bg-slate-800 p-1 rounded-lg border border-slate-700 flex items-center text-xs">
-                    <button id="btn-user-mode" onclick="setAdminMode(false)" class="px-3 py-1.5 rounded-md font-medium transition text-white bg-blue-600">
+                    <button id="btn-user-mode" onclick="requestAuth(false)" class="px-3 py-1.5 rounded-md font-medium transition text-white bg-blue-600">
                         <i class="fa-solid fa-user"></i> 사용자
                     </button>
-                    <button id="btn-admin-mode" onclick="setAdminMode(true)" class="px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white">
+                    <button id="btn-admin-mode" onclick="requestAuth(true)" class="px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white">
                         <i class="fa-solid fa-user-gear"></i> 관리자
                     </button>
                 </div>
@@ -55,14 +55,20 @@
             </button>
         </div>
 
-        <!-- 탭 및 검색 바 -->
+        <!-- 탭 및 검색 바 (전체, 본공고, 사전규격, 발주계획 3개 탭 구성) -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex space-x-2 border-b border-slate-100 sm:border-none pb-2 sm:pb-0">
+            <div class="flex flex-wrap gap-2 border-b border-slate-100 sm:border-none pb-2 sm:pb-0">
                 <button onclick="filterType('ALL')" id="tab-ALL" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white shadow-sm">
                     <i class="fa-solid fa-list-ul mr-1.5"></i>전체공고현황
                 </button>
                 <button onclick="filterType('본공고')" id="tab-본공고" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
                     <i class="fa-solid fa-landmark mr-1.5"></i>본공고
+                </button>
+                <button onclick="filterType('사전규격')" id="tab-사전규격" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-file-lines mr-1.5"></i>사전규격
+                </button>
+                <button onclick="filterType('발주계획')" id="tab-발주계획" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-calendar-check mr-1.5"></i>발주계획
                 </button>
             </div>
 
@@ -137,21 +143,36 @@
         let isAdmin = false;
         let selectedCalendarDate = '';
 
+        // 🔐 사용자 및 관리자 모드 비밀번호 설정 (서로 다르게 지정)
+        const USER_PASSWORD = "user1234";   // 사용자 모드 비밀번호
+        const ADMIN_PASSWORD = "admin5678"; // 관리자 모드 비밀번호
+
         // 초기 데이터 로드
         document.addEventListener('DOMContentLoaded', () => {
             loadNotices();
             renderCalendar(new Date());
         });
 
-        // 관리자/사용자 모드 변경
-        function setAdminMode(status) {
-            if (status) {
-                const pass = prompt("관리자 비밀번호를 입력해 주세요.", "");
-                if (pass !== "1234") {
-                    alert("비밀번호가 올바르지 않습니다.");
+        // 사용자/관리자 모드 전환 시 비밀번호 검증
+        function requestAuth(toAdmin) {
+            const pass = prompt(toAdmin ? "관리자 비밀번호를 입력해 주세요." : "사용자 비밀번호를 입력해 주세요.", "");
+            
+            if (toAdmin) {
+                if (pass !== ADMIN_PASSWORD) {
+                    alert("관리자 비밀번호가 올바르지 않습니다.");
+                    return;
+                }
+            } else {
+                if (pass !== USER_PASSWORD) {
+                    alert("사용자 비밀번호가 올바르지 않습니다.");
                     return;
                 }
             }
+            
+            setAdminMode(toAdmin);
+        }
+
+        function setAdminMode(status) {
             isAdmin = status;
             document.getElementById('btn-user-mode').className = status ? "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white" : "px-3 py-1.5 rounded-md font-medium transition text-white bg-blue-600";
             document.getElementById('btn-admin-mode').className = status ? "px-3 py-1.5 rounded-md font-medium transition text-white bg-amber-600" : "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white";
@@ -197,9 +218,9 @@
             const listEl = document.getElementById('notice-list');
             listEl.innerHTML = '';
 
-            // 💡 핵심 로직: 일반 사용자 모드일 때는 isHidden === true 항목을 완전히 제외!
+            // 일반 사용자 모드일 때는 isHidden === true 항목 제외 및 탭 필터링 적용
             const filtered = allNotices.filter(item => {
-                if (!isAdmin && item.isHidden) return false; // 일반 사용자는 숨김 항목 차단
+                if (!isAdmin && item.isHidden) return false; 
                 if (currentTypeFilter !== 'ALL' && item.ntceKindNm !== currentTypeFilter) return false;
                 if (searchKeyword) {
                     const matchTitle = (item.ntceNm || '').toLowerCase().includes(searchKeyword);
@@ -290,7 +311,7 @@
             localStorage.setItem('notice_local_state', JSON.stringify(localState));
         }
 
-        // 탭 필터링
+        // 탭 필터링 ([전체공고현황], [본공고], [사전규격], [발주계획])
         function filterType(type) {
             currentTypeFilter = type;
             document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -313,10 +334,10 @@
             const firstDay = new Date(year, month, 1).getDay();
             const lastDate = new Date(year, month + 1, 0).getDate();
 
-            // 마감일 매핑 (유효 공고만)
+            // 마감일 매핑
             const deadlineMap = {};
             notices.forEach(n => {
-                if (!isAdmin && n.isHidden) return; // 사용자 모드에서는 달력 마감일도 제외
+                if (!isAdmin && n.isHidden) return;
                 if (n.dateLimit && n.dateLimit !== '-') {
                     deadlineMap[n.dateLimit] = (deadlineMap[n.dateLimit] || 0) + 1;
                 }

@@ -49,7 +49,7 @@ def save_web_dashboard_json(items):
 
         formatted_list.append({
             "id": item_id,
-            "ntceKindNm": item.get('source_type'), # '본공고', '사전규격', '발주계획'
+            "ntceKindNm": item.get('source_type'),
             "ntceNm": item.get('title'),
             "organ": item.get('notice_instt'),
             "price": item.get('raw_price', 0),
@@ -104,8 +104,6 @@ def format_datetime_str(dt_str):
 
 def check_bids():
     matched_bids = []
-    
-    # 수집 대상 엔드포인트 목록 (본공고, 사전규격, 발주계획)
     endpoints = [
         ("본공고", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"),
         ("본공고", "http://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwk"),

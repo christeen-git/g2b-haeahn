@@ -4,19 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>스마트 입찰·정비사업 모니터링 대시보드</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         body { font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
-        .gold-glow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.35); }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
 
-    <!-- 상단 헤더 -->
     <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
         <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center space-x-3">
@@ -25,7 +21,7 @@
                 </div>
                 <div>
                     <h1 class="font-bold text-xl tracking-tight">스마트 입찰·정비사업 모니터링</h1>
-                    <p class="text-xs text-slate-400">G2B 나라장터 & 민간 정비사업 실시간 대시보드</p>
+                    <p class="text-xs text-slate-400">G2B 나라장터 실시간 대시보드</p>
                 </div>
             </div>
 
@@ -46,348 +42,195 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 pt-6 space-y-6">
-
-        <!-- 안내 알림 바 -->
         <div id="status-bar" class="hidden bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl flex justify-between items-center text-sm shadow-sm">
-            <span id="status-msg"><i class="fa-solid fa-circle-info mr-2"></i>최신 공고 데이터를 불러오는 중입니다...</span>
+            <span id="status-msg"><i class="fa-solid fa-circle-info mr-2"></i>데이터를 불러오는 중입니다...</span>
             <button onclick="document.getElementById('status-bar').classList.add('hidden')" class="text-blue-400 hover:text-blue-600">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <!-- 탭 및 검색 바 (전체, 본공고, 사전규격, 발주계획 3개 탭 구성) -->
+        <!-- 탭 및 검색 바 -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex flex-wrap gap-2 border-b border-slate-100 sm:border-none pb-2 sm:pb-0">
-                <button onclick="filterType('ALL')" id="tab-ALL" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white shadow-sm">
-                    <i class="fa-solid fa-list-ul mr-1.5"></i>전체공고현황
-                </button>
-                <button onclick="filterType('본공고')" id="tab-본공고" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                    <i class="fa-solid fa-landmark mr-1.5"></i>본공고
-                </button>
-                <button onclick="filterType('사전규격')" id="tab-사전규격" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                    <i class="fa-solid fa-file-lines mr-1.5"></i>사전규격
-                </button>
-                <button onclick="filterType('발주계획')" id="tab-발주계획" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">
-                    <i class="fa-solid fa-calendar-check mr-1.5"></i>발주계획
-                </button>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterType('ALL')" id="tab-ALL" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white shadow-sm">전체</button>
+                <button onclick="filterType('본공고')" id="tab-본공고" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">본공고</button>
+                <button onclick="filterType('사전규격')" id="tab-사전규격" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">사전규격</button>
+                <button onclick="filterType('발주계획')" id="tab-발주계획" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">발주계획</button>
             </div>
-
             <div class="relative flex-1 max-w-md">
-                <input type="text" id="search-input" onkeyup="renderDashboard()" placeholder="공고명, 기관명 검색..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <input type="text" id="search-input" onkeyup="renderDashboard()" placeholder="공고명, 기관명 검색..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
             </div>
         </div>
 
-        <!-- 대시보드 레이아웃 (공고 목록 + 달력) -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <!-- 좌측: 공고 목록 영역 (2 컬럼) -->
             <div class="lg:col-span-2 space-y-4">
                 <div class="flex justify-between items-center px-1">
                     <h2 class="font-bold text-lg text-slate-800 flex items-center gap-2">
                         <span>공고 목록</span>
                         <span id="notice-count" class="bg-blue-100 text-blue-700 text-xs px-2.5 py-0.5 rounded-full font-semibold">0</span>
                     </h2>
-                    <span id="admin-notice-info" class="text-xs text-amber-600 hidden font-medium">
-                        <i class="fa-solid fa-eye-slash mr-1"></i>관리자 모드: 숨김 공고 포함 표시 중
-                    </span>
+                    <span id="admin-notice-info" class="text-xs text-amber-600 hidden font-medium">관리자 모드 (숨김 포함)</span>
                 </div>
-
-                <div id="notice-list" class="space-y-3">
-                    <!-- 공고 카드가 여기에 동적으로 추가됩니다 -->
-                </div>
+                <div id="notice-list" class="space-y-3"></div>
             </div>
 
-            <!-- 우측: 달력 & 일정 요약 영역 (1 컬럼) -->
             <div class="space-y-6">
-                <!-- 달력 카드 -->
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                            <i class="fa-regular fa-calendar-days text-blue-600"></i> 입찰 마감 달력
-                        </h3>
-                        <span id="calendar-month" class="text-sm font-semibold text-slate-600"></span>
+                        <h3 class="font-bold text-slate-800 text-sm"><i class="fa-regular fa-calendar-days text-blue-600 mr-1"></i> 마감 달력</h3>
+                        <span id="calendar-month" class="text-xs font-semibold text-slate-600"></span>
                     </div>
-
-                    <!-- 요일 헤더 -->
                     <div class="grid grid-cols-7 text-center text-xs font-semibold text-slate-400 mb-2">
-                        <div class="text-red-500">일</div>
-                        <div>월</div><div>화</div><div>수</div><div>목</div><div>금</div>
-                        <div class="text-blue-500">토</div>
+                        <div class="text-red-500">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="text-blue-500">토</div>
                     </div>
-
-                    <!-- 날짜 그리드 -->
-                    <div id="calendar-grid" class="grid grid-cols-7 text-center text-xs gap-1">
-                        <!-- 날짜 셀 동적 생성 -->
-                    </div>
-                </div>
-
-                <!-- 선택된 날짜 마감 공고 브리핑 -->
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-clock text-amber-500"></i> <span id="selected-date-label">선택 일자</span> 마감 수집 공고
-                    </h4>
-                    <div id="selected-date-list" class="space-y-2 text-xs text-slate-600">
-                        <p class="text-slate-400 text-center py-4">달력에서 날짜를 클릭하시면 마감 공고를 확인할 수 있습니다.</p>
-                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 text-center text-xs gap-1"></div>
                 </div>
             </div>
-
         </div>
-
     </main>
 
     <script>
         let allNotices = [];
         let currentTypeFilter = 'ALL';
         let isAdmin = false;
-        let selectedCalendarDate = '';
 
-        // 🔐 사용자 및 관리자 모드 비밀번호 설정 (서로 다르게 지정)
-        const USER_PASSWORD = "user1234";   // 사용자 모드 비밀번호
-        const ADMIN_PASSWORD = "admin5678"; // 관리자 모드 비밀번호
+        const USER_PASSWORD = "user1234";   // 사용자 비밀번호
+        const ADMIN_PASSWORD = "admin5678"; // 관리자 비밀번호
 
-        // 초기 데이터 로드
         document.addEventListener('DOMContentLoaded', () => {
             loadNotices();
-            renderCalendar(new Date());
         });
 
-        // 사용자/관리자 모드 전환 시 비밀번호 검증
         function requestAuth(toAdmin) {
-            const pass = prompt(toAdmin ? "관리자 비밀번호를 입력해 주세요." : "사용자 비밀번호를 입력해 주세요.", "");
-            
-            if (toAdmin) {
-                if (pass !== ADMIN_PASSWORD) {
-                    alert("관리자 비밀번호가 올바르지 않습니다.");
-                    return;
-                }
-            } else {
-                if (pass !== USER_PASSWORD) {
-                    alert("사용자 비밀번호가 올바르지 않습니다.");
-                    return;
-                }
-            }
-            
-            setAdminMode(toAdmin);
-        }
-
-        function setAdminMode(status) {
-            isAdmin = status;
-            document.getElementById('btn-user-mode').className = status ? "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white" : "px-3 py-1.5 rounded-md font-medium transition text-white bg-blue-600";
-            document.getElementById('btn-admin-mode').className = status ? "px-3 py-1.5 rounded-md font-medium transition text-white bg-amber-600" : "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white";
-            document.getElementById('admin-notice-info').classList.toggle('hidden', !status);
-            
-            showStatus(isAdmin ? "관리자 모드로 전환되었습니다." : "일반 사용자 모드로 전환되었습니다.");
+            const pass = prompt(toAdmin ? "관리자 비밀번호를 입력하세요." : "사용자 비밀번호를 입력하세요.", "");
+            if (toAdmin && pass !== ADMIN_PASSWORD) { alert("비밀번호가 틀렸습니다."); return; }
+            if (!toAdmin && pass !== USER_PASSWORD) { alert("비밀번호가 틀렸습니다."); return; }
+            isAdmin = toAdmin;
+            document.getElementById('btn-user-mode').className = isAdmin ? "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white" : "px-3 py-1.5 rounded-md font-medium transition text-white bg-blue-600";
+            document.getElementById('btn-admin-mode').className = isAdmin ? "px-3 py-1.5 rounded-md font-medium transition text-white bg-amber-600" : "px-3 py-1.5 rounded-md font-medium transition text-slate-400 hover:text-white";
+            document.getElementById('admin-notice-info').classList.toggle('hidden', !isAdmin);
             renderDashboard();
         }
 
-        // JSON 데이터 불러오기
         async function loadNotices() {
-            const icon = document.getElementById('refresh-icon');
-            if (icon) icon.classList.add('fa-spin');
-            
             try {
-                const response = await fetch(`notices.json?t=${new Date().getTime()}`);
-                if (!response.ok) throw new Error("데이터를 찾을 수 없습니다.");
-                allNotices = await response.json();
+                const res = await fetch(`notices.json?t=${new Date().getTime()}`);
+                if (!res.ok) throw new Error();
+                allNotices = await res.json();
                 
-                // 로컬 스토리지에 저장된 숨김/중요 상태 동기화
                 const localState = JSON.parse(localStorage.getItem('notice_local_state') || '{}');
                 allNotices.forEach(n => {
                     if (localState[n.id]) {
                         if (localState[n.id].isHidden !== undefined) n.isHidden = localState[n.id].isHidden;
                         if (localState[n.id].isImportant !== undefined) n.isImportant = localState[n.id].isImportant;
+                        if (localState[n.id].isChecked !== undefined) n.isChecked = localState[n.id].isChecked;
                     }
                 });
-
-                showStatus("✅ 최신 공고 데이터를 성공적으로 불러왔습니다.");
-            } catch (err) {
-                console.warn(err);
-                showStatus("⚠️ 공고 데이터를 불러오지 못했습니다. 파이썬 자동 연동 대기 중입니다.", "warning");
+                showStatus("✅ 데이터를 불러왔습니다.");
+            } catch (e) {
+                showStatus("⚠️ notices.json 파일이 없습니다. 액션을 실행해 주세요.", "warning");
                 allNotices = [];
             } finally {
-                if (icon) icon.classList.remove('fa-spin');
                 renderDashboard();
             }
         }
 
-        // 대시보드 메인 렌더링
         function renderDashboard() {
-            const searchKeyword = document.getElementById('search-input').value.trim().toLowerCase();
+            const keyword = document.getElementById('search-input').value.trim().toLowerCase();
             const listEl = document.getElementById('notice-list');
             listEl.innerHTML = '';
 
-            // 일반 사용자 모드일 때는 isHidden === true 항목 제외 및 탭 필터링 적용
             const filtered = allNotices.filter(item => {
-                if (!isAdmin && item.isHidden) return false; 
+                if (!isAdmin && item.isHidden) return false;
                 if (currentTypeFilter !== 'ALL' && item.ntceKindNm !== currentTypeFilter) return false;
-                if (searchKeyword) {
-                    const matchTitle = (item.ntceNm || '').toLowerCase().includes(searchKeyword);
-                    const matchOrgan = (item.organ || '').toLowerCase().includes(searchKeyword);
-                    return matchTitle || matchOrgan;
-                }
+                if (keyword && !(item.ntceNm || '').toLowerCase().includes(keyword) && !(item.organ || '').toLowerCase().includes(keyword)) return false;
                 return true;
             });
 
             document.getElementById('notice-count').innerText = filtered.length;
 
             if (filtered.length === 0) {
-                listEl.innerHTML = `
-                    <div class="bg-white p-12 text-center rounded-xl border border-slate-200 text-slate-400">
-                        <i class="fa-regular fa-folder-open text-4xl mb-3 text-slate-300"></i>
-                        <p class="font-medium">등록된 공고가 없습니다.</p>
-                    </div>`;
-                renderCalendar(new Date());
+                listEl.innerHTML = `<div class="bg-white p-12 text-center rounded-xl border border-slate-200 text-slate-400">등록된 공고가 없습니다.</div>`;
                 return;
             }
 
             filtered.forEach(item => {
-                const isHiddenStyle = item.isHidden ? "opacity-50 bg-slate-50 border-dashed" : "bg-white border-slate-200";
-                const starColor = item.isImportant ? "text-amber-400" : "text-slate-300 hover:text-amber-400";
-                const priceFormatted = item.price ? Number(item.price).toLocaleString() + " 원" : "금액 미지정";
-
-                const cardHtml = `
-                    <div class="p-5 rounded-xl border ${isHiddenStyle} shadow-sm hover:shadow-md transition relative space-y-3">
-                        <div class="flex justify-between items-start gap-3">
+                const isCheckedStyle = item.isChecked ? "bg-emerald-50/60 border-emerald-200" : "bg-white border-slate-200";
+                
+                listEl.innerHTML += `
+                    <div class="p-4 rounded-xl border ${isCheckedStyle} shadow-sm space-y-2">
+                        <div class="flex justify-between items-start gap-2">
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
-                                    <span class="px-2 py-0.5 bg-blue-50 text-blue-600 font-bold text-xs rounded border border-blue-100">${item.ntceKindNm || '공고'}</span>
-                                    ${item.isHidden ? '<span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-xs rounded font-bold">숨김 처리됨</span>' : ''}
-                                    <span class="text-xs text-slate-400"><i class="fa-regular fa-building mr-1"></i>${item.organ || '발주기관 미상'}</span>
+                                    <span class="px-2 py-0.5 bg-blue-50 text-blue-600 font-bold text-xs rounded">${item.ntceKindNm}</span>
+                                    <span class="text-xs text-slate-400">${item.organ}</span>
                                 </div>
-                                <h3 class="font-bold text-base text-slate-800 hover:text-blue-600 cursor-pointer">
-                                    <a href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${item.ntceNm}</a>
-                                </h3>
+                                <h3 class="font-bold text-sm text-slate-800"><a href="${item.url}" target="_blank" class="hover:text-blue-600">${item.ntceNm}</a></h3>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button onclick="toggleImportant('${item.id}')" class="text-lg ${starColor} transition">
-                                    <i class="fa-solid fa-star"></i>
-                                </button>
-                                ${isAdmin ? `
-                                    <button onclick="toggleHide('${item.id}')" class="px-2.5 py-1 text-xs font-semibold rounded ${item.isHidden ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
-                                        ${item.isHidden ? '숨김 해제' : '공고 숨기기'}
-                                    </button>
-                                ` : ''}
+                                <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer px-2 py-1 bg-white border rounded shadow-sm">
+                                    <input type="checkbox" ${item.isChecked ? 'checked' : ''} onchange="toggleCheck('${item.id}')" class="rounded text-blue-600">
+                                    <span>${item.isChecked ? '확인함' : '미확인'}</span>
+                                </label>
+                                ${isAdmin ? `<button onclick="toggleHide('${item.id}')" class="px-2 py-1 text-xs rounded bg-rose-100 text-rose-700">${item.isHidden ? '숨김해제' : '숨기기'}</button>` : ''}
                             </div>
                         </div>
-
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
-                            <div><span class="text-slate-400">추정가격:</span> <span class="font-semibold text-slate-700">${priceFormatted}</span></div>
-                            <div><span class="text-slate-400">게시일자:</span> ${item.dateNotice || '-'}</div>
-                            <div><span class="text-slate-400">현장설명:</span> ${item.dateBrief || '-'}</div>
-                            <div><span class="text-slate-400 text-rose-500 font-medium">마감일자:</span> <span class="font-bold text-rose-600">${item.dateLimit || '-'}</span></div>
+                        <div class="text-xs text-slate-500 flex gap-4 pt-1 border-t">
+                            <span>가격: ${item.price ? Number(item.price).toLocaleString() + '원' : '미지정'}</span>
+                            <span class="text-rose-600 font-bold">마감: ${item.dateLimit}</span>
                         </div>
                     </div>`;
-                listEl.innerHTML += cardHtml;
             });
-
             renderCalendar(new Date(), filtered);
         }
 
-        // 중요 공고 지정
-        function toggleImportant(id) {
-            const notice = allNotices.find(n => n.id === id);
-            if (notice) {
-                notice.isImportant = !notice.isImportant;
-                saveLocalState(id, { isImportant: notice.isImportant });
+        function toggleCheck(id) {
+            const n = allNotices.find(x => x.id === id);
+            if (n) {
+                n.isChecked = !n.isChecked;
+                saveState(id, { isChecked: n.isChecked });
                 renderDashboard();
             }
         }
 
-        // 숨김 처리 지정
         function toggleHide(id) {
-            const notice = allNotices.find(n => n.id === id);
-            if (notice) {
-                notice.isHidden = !notice.isHidden;
-                saveLocalState(id, { isHidden: notice.isHidden });
+            const n = allNotices.find(x => x.id === id);
+            if (n) {
+                n.isHidden = !n.isHidden;
+                saveState(id, { isHidden: n.isHidden });
                 renderDashboard();
             }
         }
 
-        function saveLocalState(id, state) {
-            const localState = JSON.parse(localStorage.getItem('notice_local_state') || '{}');
-            localState[id] = { ...localState[id], ...state };
-            localStorage.setItem('notice_local_state', JSON.stringify(localState));
+        function saveState(id, state) {
+            const local = JSON.parse(localStorage.getItem('notice_local_state') || '{}');
+            local[id] = { ...local[id], ...state };
+            localStorage.setItem('notice_local_state', JSON.stringify(local));
         }
 
-        // 탭 필터링 ([전체공고현황], [본공고], [사전규격], [발주계획])
         function filterType(type) {
             currentTypeFilter = type;
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100";
-            });
+            document.querySelectorAll('.tab-btn').forEach(b => b.className = "tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100");
             document.getElementById(`tab-${type}`).className = "tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white shadow-sm";
             renderDashboard();
         }
 
-        // 달력 그려주기
         function renderCalendar(baseDate, notices = allNotices) {
             const grid = document.getElementById('calendar-grid');
-            const monthLabel = document.getElementById('calendar-month');
+            document.getElementById('calendar-month').innerText = `${baseDate.getFullYear()}년 ${baseDate.getMonth() + 1}월`;
             grid.innerHTML = '';
-
-            const year = baseDate.getFullYear();
-            const month = baseDate.getMonth();
-            monthLabel.innerText = `${year}년 ${month + 1}월`;
-
-            const firstDay = new Date(year, month, 1).getDay();
-            const lastDate = new Date(year, month + 1, 0).getDate();
-
-            // 마감일 매핑
-            const deadlineMap = {};
-            notices.forEach(n => {
-                if (!isAdmin && n.isHidden) return;
-                if (n.dateLimit && n.dateLimit !== '-') {
-                    deadlineMap[n.dateLimit] = (deadlineMap[n.dateLimit] || 0) + 1;
-                }
-            });
-
-            for (let i = 0; i < firstDay; i++) {
-                grid.innerHTML += `<div class="h-8"></div>`;
-            }
-
-            for (let date = 1; date <= lastDate; date++) {
-                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                const hasCount = deadlineMap[dateStr] || 0;
-                const badge = hasCount > 0 ? `<span class="block text-[10px] font-bold bg-rose-500 text-white rounded-full mt-0.5">${hasCount}</span>` : '';
-
-                grid.innerHTML += `
-                    <div onclick="selectCalendarDate('${dateStr}')" class="h-10 p-1 border border-slate-100 rounded cursor-pointer hover:bg-blue-50 transition flex flex-col items-center justify-center">
-                        <span class="font-medium text-slate-700">${date}</span>
-                        ${badge}
-                    </div>`;
+            const first = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1).getDay();
+            const last = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0).getDate();
+            for (let i = 0; i < first; i++) grid.innerHTML += `<div></div>`;
+            for (let d = 1; d <= last; d++) {
+                grid.innerHTML += `<div class="h-8 flex items-center justify-center border rounded text-slate-700">${d}</div>`;
             }
         }
 
-        function selectCalendarDate(dateStr) {
-            selectedCalendarDate = dateStr;
-            document.getElementById('selected-date-label').innerText = dateStr;
-            const listEl = document.getElementById('selected-date-list');
-            
-            const matched = allNotices.filter(n => {
-                if (!isAdmin && n.isHidden) return false;
-                return n.dateLimit === dateStr;
-            });
-
-            if (matched.length === 0) {
-                listEl.innerHTML = `<p class="text-slate-400 text-center py-4">해당 일자에 마감되는 공고가 없습니다.</p>`;
-                return;
-            }
-
-            listEl.innerHTML = matched.map(m => `
-                <div class="p-2.5 bg-slate-50 rounded border border-slate-200">
-                    <p class="font-bold text-slate-800">${m.ntceNm}</p>
-                    <p class="text-slate-500 mt-1">${m.organ || '발주기관 미상'}</p>
-                </div>
-            `).join('');
-        }
-
-        function showStatus(msg, type = 'info') {
-            const bar = document.getElementById('status-bar');
-            const msgEl = document.getElementById('status-msg');
-            msgEl.innerText = msg;
-            bar.classList.remove('hidden');
+        function showStatus(msg) {
+            document.getElementById('status-msg').innerText = msg;
+            document.getElementById('status-bar').classList.remove('hidden');
         }
     </script>
 </body>
